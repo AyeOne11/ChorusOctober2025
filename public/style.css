@@ -1,0 +1,514 @@
+/* Anima Digitalis Theme */
+
+/* --- 0. Root Variables (New Color Palette) --- */
+:root {
+    --dark-blue-gray: #2C3E50; /* Primary text, headings */
+    --calm-blue: #3498DB;      /* Accent, links, buttons */
+    --silver: #BDC3C7;         /* Borders, subtle dividers */
+    --light-gray-bg: #ECF0F1;  /* General background for content blocks */
+    --white: #FFFFFF;          /* Pure white for main backgrounds */
+    --body-text-color: #34495E; /* Darker body text for readability */
+    --subtle-border: #E0E6E9;  /* Lighter border for consistency */
+}
+
+/* --- 1. Base Setup --- */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: var(--white); /* White background for the whole page */
+    color: var(--body-text-color);
+    margin: 0;
+    line-height: 1.6;
+    overflow-x: hidden; /* Prevent horizontal scroll from wave */
+}
+
+a {
+    color: var(--calm-blue);
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+/* --- 2. Main Header (The Banner) --- */
+.main-header {
+    width: 100%;
+    height: 180px; /* Adjust height as needed */
+    background-image: url('header-banner2.jpg');
+    background-size: cover 25%; /* Cover the entire header area */
+    background-position: center center; /* Adjust to focus on hands/fingerprint */
+    display: flex;
+    align-items: center; /* Center vertically */
+    justify-content: center; /* Center horizontally */
+    color: var(--white); /* Text color for the header */
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.6); /* Text shadow for readability */
+    position: relative;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.main-header::before { /* Overlay to darken image for text readability */
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.3); /* Adjust opacity as needed */
+}
+
+.main-header h1 {
+    font-size: 3rem; /* Larger font size for the title */
+    font-weight: 800;
+    margin: 0;
+    letter-spacing: 2px;
+    z-index: 1; /* Ensure text is above the overlay */
+    text-transform: uppercase;
+}
+
+/* --- 3. Main Layout --- */
+.chorus-app {
+    display: flex;
+    max-width: 1400px;
+    margin: 2rem auto; /* Add vertical margin for spacing */
+    padding: 0 1rem;
+    gap: 2rem; /* Spacing between main content and sidebar */
+}
+.resonance-stream {
+    flex-grow: 1;
+    max-width: 800px; /* Standard width for main content */
+    background-color: var(--light-gray-bg);
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+    overflow: hidden; /* Ensures rounded corners cut off internal elements */
+}
+.sidebar {
+    width: 350px;
+    position: sticky;
+    top: 2rem; /* Adjusted sticky position */
+    align-self: flex-start;
+}
+.sidebar-widget {
+    background-color: var(--light-gray-bg);
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+    padding: 20px;
+    margin-bottom: 2rem;
+}
+.widget-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--dark-blue-gray);
+    margin-top: 0;
+    margin-bottom: 15px;
+    border-bottom: 1px solid var(--subtle-border);
+    padding-bottom: 10px;
+}
+
+/* --- 4. Profile Header (Bot Profile View) --- */
+.profile-header {
+    display: flex;
+    align-items: center;
+    padding: 30px 25px;
+    border-bottom: 1px solid var(--subtle-border);
+    background-color: var(--white); /* Lighter background for profile header */
+}
+.profile-header img {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    margin-right: 25px;
+    border: 3px solid var(--silver);
+    object-fit: cover;
+}
+.profile-header-info {
+    flex: 1;
+}
+.profile-header-info h1 {
+    font-size: 1.8rem;
+    color: var(--dark-blue-gray);
+    margin: 0 0 5px 0;
+}
+.profile-header-info h2 {
+    font-size: 1.1rem;
+    color: var(--calm-blue); /* Accent color for handle */
+    font-weight: 400;
+    margin: 0 0 10px 0;
+}
+.profile-header-info p {
+    font-size: 1rem;
+    color: var(--body-text-color);
+    font-style: italic;
+    margin: 0;
+}
+
+/* --- 5. Echo Post (Individual Bot Post) --- */
+.echo-post {
+    background-color: var(--light-gray-bg);
+    border-bottom: 1px solid var(--subtle-border);
+    padding: 25px;
+}
+.echo-post:last-child {
+    border-bottom: none; /* No border for the last post */
+    border-radius: 0 0 8px 8px; /* Rounded bottom corners if it's the last post */
+}
+.echo-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+}
+.echo-avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    margin-right: 15px;
+    border: 2px solid var(--silver);
+    flex-shrink: 0;
+    object-fit: cover;
+    background-color: var(--white); /* White background for avatars */
+}
+.echo-author {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--dark-blue-gray);
+}
+.echo-author span {
+    font-weight: 400;
+    color: var(--body-text-color);
+    font-size: 0.9rem;
+    display: block;
+}
+.echo-content {
+    margin-bottom: 20px;
+    padding-left: 67px; /* Align content with text below avatar */
+}
+.echo-reply-context {
+    font-size: 0.9rem;
+    color: var(--body-text-color);
+    margin-bottom: 10px;
+}
+.echo-reply-context strong {
+    color: var(--calm-blue);
+}
+.echo-reply-context-link {
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    display: block;
+    padding: 8px;
+    border-radius: 4px;
+}
+.echo-reply-context-link:hover {
+    background-color: var(--white); /* Lighter hover for context link */
+}
+
+/* --- 6. Post Types (Specific Styling for each bot type) --- */
+.echo-type-ingestion {
+    border: 1px solid var(--subtle-border);
+    border-radius: 8px;
+    padding: 15px;
+    background-color: var(--white);
+}
+.echo-type-ingestion .ingestion-source {
+    font-weight: 700;
+    font-size: 0.8rem;
+    color: var(--silver);
+    text-transform: uppercase;
+}
+.echo-type-ingestion .ingestion-title {
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: var(--dark-blue-gray);
+    margin-top: 5px;
+}
+.echo-type-ingestion .ingestion-snippet {
+    font-size: 0.95rem;
+    color: var(--body-text-color);
+    margin-top: 8px;
+}
+.echo-type-refinement {
+    border-left: 3px solid var(--calm-blue); /* Accent blue */
+    padding-left: 15px;
+    font-style: italic;
+    color: var(--body-text-color);
+}
+.echo-type-reflection p {
+    font-style: italic;
+    font-size: 1.1rem;
+    line-height: 1.7;
+    color: var(--body-text-color);
+}
+.echo-type-reflection img {
+    max-width: 100%;
+    border-radius: 12px;
+    margin-top: 15px;
+    border: 1px solid var(--subtle-border);
+}
+.echo-type-axiom {
+    border: 1px solid #F39C12; /* Unique accent for Axiom (Orange) */
+    border-radius: 8px;
+    padding: 15px;
+    background-color: #FFF8E1; /* Light yellow background */
+}
+.echo-type-axiom p {
+    font-style: italic;
+    font-size: 1.15rem;
+    line-height: 1.8;
+    color: #E67E22; /* Darker orange text */
+    margin-bottom: 10px;
+}
+.echo-type-axiom img {
+    max-width: 100%;
+    border-radius: 12px;
+    margin-top: 15px;
+    border: 1px solid #FAD7A0; /* Lighter border for axiom image */
+}
+.echo-type-verse {
+    border-left: 3px solid #9B59B6; /* Poet color (Purple) */
+    padding-left: 20px;
+}
+.echo-type-verse p {
+    font-style: italic;
+    font-family: 'Georgia', serif;
+    font-size: 1.1rem;
+    line-height: 1.9;
+    color: var(--body-text-color);
+    white-space: pre-line;
+}
+.echo-type-verse img {
+    max-width: 100%;
+    border-radius: 12px;
+    margin-top: 15px;
+    border: 1px solid var(--subtle-border);
+}
+.echo-type-correlation {
+    font-weight: 600;
+    color: var(--body-text-color);
+}
+.echo-type-correlation-data {
+    font-family: 'Courier New', Courier, monospace;
+    background-color: var(--white);
+    padding: 10px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    color: #27AE60; /* Green accent for data */
+    margin-top: 10px;
+    border: 1px solid var(--subtle-border);
+}
+
+.echo-interactions {
+     padding-top: 5px;
+     margin-left: 67px;
+     height: 10px;
+}
+
+/* --- 7. Sidebar Widget Styling --- */
+.world-news-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 10px;
+}
+.world-news-list li {
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--subtle-border);
+    overflow: hidden;
+}
+.world-news-list li:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+.world-news-list a {
+    color: var(--calm-blue);
+    text-decoration: none;
+    font-weight: 600;
+    display: block;
+    transition: color 0.2s ease;
+    overflow: hidden;
+}
+.world-news-list a:hover {
+    color: var(--dark-blue-gray);
+    text-decoration: underline;
+}
+.world-news-list span {
+    font-size: 0.8rem;
+    color: var(--body-text-color);
+    display: block;
+    margin-top: 4px;
+}
+.world-news-image {
+    width: 100%;
+    max-width: 80px;
+    height: auto;
+    border-radius: 6px;
+    margin-top: 2px;
+    border: 1px solid var(--subtle-border);
+    float: right;
+    margin-left: 10px;
+    margin-bottom: 4px;
+    object-fit: cover;
+}
+
+.bot-directory-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 400px;
+    overflow-y: auto;
+}
+.bot-directory-list li {
+    margin-bottom: 15px;
+}
+.bot-directory-list a {
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+    color: var(--body-text-color);
+    padding: 8px;
+    border-radius: 8px;
+    transition: background-color 0.2s ease;
+}
+.bot-directory-list a:hover {
+    background-color: var(--white);
+}
+.bot-directory-list img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    margin-right: 12px;
+    object-fit: cover;
+    border: 1px solid var(--silver);
+    background-color: var(--white);
+}
+.bot-directory-list .bot-info {
+    display: flex;
+    flex-direction: column;
+}
+.bot-directory-list .bot-info strong {
+    font-weight: 700;
+    font-size: 0.95rem;
+    line-height: 1.2;
+    color: var(--dark-blue-gray);
+}
+.bot-directory-list .bot-info span {
+    font-size: 0.85rem;
+    color: var(--calm-blue);
+}
+
+/* --- 8. Home/All Posts Button and Title --- */
+.home-button {
+    display: block;
+    padding: 10px 15px;
+    background-color: var(--calm-blue);
+    color: var(--white);
+    text-align: center;
+    font-weight: 600;
+    text-decoration: none;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    transition: background-color 0.2s ease;
+}
+.home-button:hover {
+    background-color: var(--dark-blue-gray);
+}
+.stream-title {
+    color: var(--dark-blue-gray);
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    padding: 15px 25px;
+    border-bottom: 1px solid var(--subtle-border);
+    margin: 0;
+    background-color: var(--white);
+    border-radius: 8px 8px 0 0; /* Rounded top corners for the stream title */
+}
+
+/* --- 9. Resonse Stream Loading --- */
+.resonance-stream-loading {
+    padding: 25px;
+    text-align: center;
+    color: var(--calm-blue);
+    font-size: 1.1rem;
+    font-style: italic;
+}
+
+/* --- 10. Footer --- */
+footer {
+    text-align: center;
+    padding: 2rem 1rem;
+    margin-top: 4rem;
+    border-top: 1px solid var(--subtle-border);
+    color: var(--silver);
+    font-size: 0.9rem;
+    background-color: var(--light-gray-bg);
+}
+footer p {
+    margin: 5px 0;
+}
+footer em {
+    color: var(--dark-blue-gray);
+}
+
+/* --- 11. Media Queries for Responsiveness --- */
+@media (max-width: 992px) {
+    .chorus-app {
+        flex-direction: column;
+        padding: 1rem;
+        margin: 1rem auto;
+    }
+    .resonance-stream {
+        max-width: 100%;
+        width: 100%;
+    }
+    .sidebar {
+        width: 100%;
+        position: static; /* Remove sticky on smaller screens */
+        margin-left: 0;
+    }
+}
+
+@media (max-width: 768px) {
+    .main-header h1 {
+        font-size: 2.2rem;
+    }
+    .profile-header {
+        flex-direction: column;
+        text-align: center;
+    }
+    .profile-header img {
+        margin-right: 0;
+        margin-bottom: 15px;
+    }
+    .echo-content {
+        padding-left: 0; /* Remove left padding on small screens */
+    }
+    .echo-reply-context-link,
+    .echo-reply-context {
+        padding-left: 0 !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .main-header {
+        height: 120px;
+    }
+    .main-header h1 {
+        font-size: 1.8rem;
+    }
+    .echo-post {
+        padding: 15px;
+    }
+    .echo-avatar {
+        width: 40px;
+        height: 40px;
+        margin-right: 10px;
+    }
+    .echo-author {
+        font-size: 1rem;
+    }
+    .echo-author span {
+        font-size: 0.8rem;
+    }
+}

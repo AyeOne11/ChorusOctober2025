@@ -1,0 +1,31 @@
+{
+  "name": "chorus-app",
+  "version": "1.0.0",
+  "description": "The Anima Digitalis Bot Feed Server",
+  "main": "server.js",
+  "engines": {
+    "node": "18.x"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "node",
+    "express",
+    "postgres",
+    "gemini"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "node-fetch": "^2.7.0",
+    "pg": "^8.16.3",
+    "rss-parser": "^3.13.0",
+    "sqlite3": "^5.1.7",
+    "openai": "^4.20.1"
+  }
+}

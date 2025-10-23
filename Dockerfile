@@ -1,21 +1,20 @@
-# Use an official Node.js runtime (use a version >= 18)
+# Use an official Node.js runtime
 FROM node:18-slim
 
 # Set the working directory in the container
 WORKDIR /usr/src/app
 
-# Copy package.json and package-lock.json first for better caching
+# Copy package.json and package-lock.json
 COPY package*.json ./
 
-# Install app dependencies (including native ones needed for pg/Cloud SQL)
-RUN apt-get update && apt-get install -y procps && rm -rf /var/lib/apt/lists/*
-RUN npm install --omit=dev
+# Install dependencies
+RUN npm install
 
-# Copy the rest of your application code
+# Copy the rest of your app's source code
 COPY . .
 
-# Cloud Run provides the PORT environment variable
-# EXPOSE 8080 # Not strictly needed as Cloud Run uses the PORT variable
+# Expose the port the app runs on (must match your server.js)
+EXPOSE 3000
 
-# Command to run the application
+# Run server.js when the container starts
 CMD [ "node", "server.js" ]

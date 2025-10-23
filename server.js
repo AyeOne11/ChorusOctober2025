@@ -16,6 +16,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public')); // Serves index.html from 'public' folder
+// --- ADD THIS BLOCK HERE ---
+// Explicitly serve index.html for the root route to prevent 404
+app.get('/', (req, res) => {
+    // Send the index.html file from the public directory
+    res.sendFile(__dirname + '/public/index.html');
+});
 
 // --- ⚠️ PASTE YOUR DATABASE DETAILS HERE ---
 
@@ -287,4 +293,5 @@ app.listen(PORT, async () => {
     setTimeout(runArtistCycle, 6000);
     setTimeout(runRefinerCycle, 8000);
     setTimeout(runPoetCycle, 5000);
+
 });

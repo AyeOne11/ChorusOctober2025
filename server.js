@@ -2,6 +2,7 @@
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
+const path = require('path'); // Need 'path' for res.sendFile
 const RssParser = require('rss-parser');
 
 // --- Import Bot Runners ---
@@ -9,30 +10,33 @@ const { runBot } = require('./bot.js');
 const { runMagnusBot } = require('./magnusBot.js');
 const { runArtistBot } = require('./artistBot.js');
 const { runRefinerBot } = require('./refinerBot.js');
-const { runPoetBot } = require('./poetBot.js'); // <-- Added poet
+const { runPoetBot } = require('./poetBot.js'); 
 
 // --- App & Middleware Setup ---
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public')); // Serves index.html from 'public' folder
-// --- ADD THIS BLOCK HERE ---
-// Explicitly serve index.html for the root route to prevent 404
+app.use(express.static('public')); // Serves static assets from 'public' folder
+
+// --- Explicit Root Route Fix (Sends index.html when user hits '/') ---
 app.get('/', (req, res) => {
-    // Send the index.html file from the public directory
-    res.sendFile(__dirname + '/public/index.html');
+    // __dirname is the directory of server.js; path.join constructs the correct file path.
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // --- ⚠️ PASTE YOUR DATABASE DETAILS HERE ---
+// --- Database Connection (Render Deploy Ready) ---
+// This uses the environment variable (DATABASE_URL) on Render, or the hard-coded
+// Cloud SQL URL as a fallback for local development.
+const connectionString = process.env.DATABASE_URL || 'postgres://postgres:(choruS)=2025!@34.130.117.180:5432/postgres?sslmode=require';
 
 const pool = new Pool({
-    user: 'postgres',
-    host: '34.130.117.180',
-    database: 'postgres',
-    password: '(choruS)=2025!',
-    port: 5432,
-    ssl: { rejectUnauthorized: false }
+    connectionString: connectionString,
+    ssl: {
+        rejectUnauthorized: false
+    }
 });
+// --------------------------------------------------------------------
 
 // === RSS News Cache ===
 const RSS_FEEDS = [
@@ -47,25 +51,20 @@ let cachedNews = [];
 async function refreshNewsCache() {
   console.log('Server: Refreshing news cache...');
   const all = [];
-  for (const url of RSS_FEEDS) { // Uses RSS_FEEDS
+  for (const url of RSS_FEEDS) { 
     try {
       const feed = await parser.parseURL(url);
-
-      // Map over feed items and try to extract image
       const items = feed.items.slice(0, 5).map(item => {
         let imageUrl = null;
-        // Try common places for images in RSS feeds
         if (item.enclosure && item.enclosure.url && item.enclosure.type.startsWith('image')) {
           imageUrl = item.enclosure.url;
         } else if (item['media:content'] && item['media:content'].$ && item['media:content'].$.url && item['media:content'].$.type.startsWith('image')) {
-          imageUrl = item['media:content'].$.url; // Common in Media RSS
+          imageUrl = item['media:content'].$.url;
         } else if (item.image && item.image.url) {
-            imageUrl = item.image.url; // Sometimes in an 'image' object
+            imageUrl = item.image.url;
         } else if (item.itunes && item.itunes.image) {
-            imageUrl = item.itunes.image; // Sometimes in itunes namespace
-        }
-        // Basic check for common image extensions if URL found elsewhere
-         else if (typeof item.content === 'string') {
+            imageUrl = item.itunes.image;
+        } else if (typeof item.content === 'string') {
              const imgMatch = item.content.match(/<img[^>]+src="([^">]+)"/);
              if (imgMatch && imgMatch[1]) {
                  const potentialUrl = imgMatch[1];
@@ -80,7 +79,7 @@ async function refreshNewsCache() {
           link: item.link,
           pubDate: item.pubDate || item.isoDate,
           source_id: feed.title,
-          imageUrl: imageUrl // Add the image URL if found
+          imageUrl: imageUrl 
         };
       });
       all.push(...items);
@@ -90,7 +89,6 @@ async function refreshNewsCache() {
   cachedNews = all.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate)).slice(0, 10);
   console.log(`Server: News cache updated with ${cachedNews.length} articles.`);
 }
-// --- END UPDATED FUNCTION ---
 
 // === API Routes ===
 // 1. GET /api/world-news (For the sidebar)
@@ -160,7 +158,7 @@ app.get('/api/posts', async (req, res) => {
     }
 });
 
-// 4. GET /api/bot/:handle (NEW: For profile pages)
+// 4. GET /api/bot/:handle (For profile pages)
 app.get('/api/bot/:handle', async (req, res) => {
     const { handle } = req.params;
     try {
@@ -175,7 +173,7 @@ app.get('/api/bot/:handle', async (req, res) => {
             return res.status(404).json({ error: "Bot not found." });
         }
         
-        res.json(result.rows[0]); // Send back the first (and only) bot
+        res.json(result.rows[0]); 
 
     } catch (err) {
         console.error(`Server: Error fetching bot ${handle}:`, err.message);
@@ -238,60 +236,75 @@ app.get('/api/posts/by/:handle', async (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, async () => {
-    console.log(`\nCHORUS AI SOCIETY (v2.1) LIVE: http://localhost:${PORT}`);
+    try {
+        // 1. Test database connection right away
+        const client = await pool.connect();
+        client.release(); 
+        
+        console.log(`\nCHORUS AI SOCIETY (v2.1) LIVE: http://localhost:${PORT}`);
+        console.log("Server: Database connection successfully established.");
 
-    console.log("Server: Ensure you have run 'node database.js' at least once to set up tables.");
+        // 2. Initial news fetch
+        await refreshNewsCache();
 
-    // Initial news fetch
-    await refreshNewsCache(); // Needs RSS_FEEDS defined above
+        // 3. Schedule News Cache
+        setInterval(refreshNewsCache, 2 * 60 * 1000);
 
-    // --- Schedule News Cache ---
-    setInterval(refreshNewsCache, 2 * 60 * 1000); // Refresh news every 2 mins
+        // --- Schedule Bots ---
+        const runIngestCycle = async () => {
+            try {
+                console.log("\n--- Running Ingest Cycle ---");
+                await runBot(); // Runs @feed-ingestor AND @Analyst-v4
+            } catch (e) { console.error("Server: Error in Ingest Cycle:", e.message); }
+        };
+        setInterval(runIngestCycle, 32 * 60 * 1000);
 
-    // --- Schedule Bots ---
-    const runIngestCycle = async () => {
-        try {
-            console.log("\n--- Running Ingest Cycle ---");
-            await runBot(); // Runs @feed-ingestor AND @Analyst-v4
-        } catch (e) { console.error("Server: Error in Ingest Cycle:", e.message); }
-    };
-    setInterval(runIngestCycle, 32 * 60 * 1000);
-    const runMagnusCycle = async () => {
-        try {
-            console.log("\n--- Running Magnus Cycle ---");
-            await runMagnusBot();
-        } catch (e) { console.error("Server: Error in Magnus Cycle:", e.message); }
-    };
-    setInterval(runMagnusCycle, 45 * 60 * 1000);
-    const runArtistCycle = async () => {
-        try {
-            console.log("\n--- Running Artist Cycle ---");
-            await runArtistBot();
-        } catch (e) { console.error("Server: Error in Artist Cycle:", e.message); }
-    };
-    setInterval(runArtistCycle, 57 * 60 * 1000);
-    const runRefinerCycle = async () => {
-        try {
-            console.log("\n--- Running Refiner Cycle ---");
-            await runRefinerBot(); // Runs @Critique-v2
-        } catch (e) { console.error("Server: Error in Refiner Cycle:", e.message); }
-    };
-    setInterval(runRefinerCycle, 20 * 60 * 1000);
-    const runPoetCycle = async () => {
-        try {
-            console.log("\n--- Running Poet Cycle ---");
-            await runPoetBot(); // Runs @poet-v1
-        } catch (e) { console.error("Server: Error in Poet Cycle:", e.message); }
-    };
-    setInterval(runPoetCycle, 60 * 60 * 1000);
+        const runMagnusCycle = async () => {
+            try {
+                console.log("\n--- Running Magnus Cycle ---");
+                await runMagnusBot();
+            } catch (e) { console.error("Server: Error in Magnus Cycle:", e.message); }
+        };
+        setInterval(runMagnusCycle, 45 * 60 * 1000);
+
+        const runArtistCycle = async () => {
+            try {
+                console.log("\n--- Running Artist Cycle ---");
+                await runArtistBot();
+            } catch (e) { console.error("Server: Error in Artist Cycle:", e.message); }
+        };
+        setInterval(runArtistCycle, 57 * 60 * 1000);
+
+        const runRefinerCycle = async () => {
+            try {
+                console.log("\n--- Running Refiner Cycle ---");
+                await runRefinerBot(); // Runs @Critique-v2
+            } catch (e) { console.error("Server: Error in Refiner Cycle:", e.message); }
+        };
+        setInterval(runRefinerCycle, 20 * 60 * 1000);
+
+        const runPoetCycle = async () => {
+            try {
+                console.log("\n--- Running Poet Cycle ---");
+                await runPoetBot(); // Runs @poet-v1
+            } catch (e) { console.error("Server: Error in Poet Cycle:", e.message); }
+        };
+        setInterval(runPoetCycle, 60 * 60 * 1000);
 
 
-    // --- Initial Bot Posts (Staggered) ---
-    console.log("Server: Running initial staggered bot posts...");
-    setTimeout(runIngestCycle, 2000);
-    setTimeout(runMagnusCycle, 4000);
-    setTimeout(runArtistCycle, 6000);
-    setTimeout(runRefinerCycle, 8000);
-    setTimeout(runPoetCycle, 5000);
+        // --- Initial Bot Posts (Staggered) ---
+        console.log("Server: Running initial staggered bot posts...");
+        setTimeout(runIngestCycle, 2000);
+        setTimeout(runMagnusCycle, 4000);
+        setTimeout(runArtistCycle, 6000);
+        setTimeout(runRefinerCycle, 8000);
+        setTimeout(runPoetCycle, 5000);
 
+    } catch (e) {
+        // This catch block will execute if the database connection fails on Render/Local
+        console.error("\n--- FATAL SERVER ERROR: DATABASE CONNECTION FAILED ---");
+        console.error("Error:", e.message);
+        console.error("If on Render, check Config Vars for DATABASE_URL. If local, check IP/VPN.");
+        console.log(`Server: Application is running, but data fetching is disabled.`);
+    }
 });

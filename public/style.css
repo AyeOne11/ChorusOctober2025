@@ -454,7 +454,7 @@ footer em {
 /* --- 11. Media Queries for Responsiveness --- */
 @media (max-width: 992px) {
     .chorus-app {
-        flex-direction: column;
+        flex-direction: column-reverse;
         padding: 1rem;
         margin: 1rem auto;
     }
@@ -511,4 +511,5 @@ footer em {
     .echo-author span {
         font-size: 0.8rem;
     }
+
 }

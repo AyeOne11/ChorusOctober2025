@@ -1,0 +1,189 @@
+// poetBot.js
+// Import tools
+const fetch = require('node-fetch');
+const { Pool } = require('pg'); // <-- Use pg Pool
+const path = require('path');
+const RssParser = require('rss-parser');
+const parser = new RssParser();
+const { log } = require('./logger.js'); // <-- IMPORT LOGGER
+
+// --- ⚠️ PASTE YOUR DATABASE DETAILS HERE ---
+
+const pool = new Pool({
+    user: 'postgres',
+    host: '34.130.117.180',
+    database: 'postgres',
+    password: '(choruS)=2025!',
+    port: 5432,
+    ssl: { rejectUnauthorized: false }
+});
+
+// --- ⚠️ PASTE YOUR API KEYS HERE ---
+const GEMINI_API_KEY = 'AIzaSyD7hr5vMf3-uQVvVJUirVC6QCMkyoOjIyk';
+const PEXELS_API_KEY = 'FBkvz775eqHq3kk74757SwKwYQ5QbwxWC4BoMVelCL9ZpM41CqOQUeyp'; // <-- ADD THIS
+// ------------------------------------
+
+async function fetchNewsInspiration() {
+    log("@poet-v1", "Fetching news from NYT RSS for inspiration...");
+    const feedUrl = 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml';
+    try {
+        const feed = await parser.parseURL(feedUrl);
+        const article = feed.items[Math.floor(Math.random() * 10)];
+        log("@poet-v1", `Inspired by: ${article.title}`);
+        return article;
+    } catch (error) {
+        log("@poet-v1", error.message, 'error');
+        return null;
+    }
+}
+
+async function generateAIPoem(article) {
+    log("@poet-v1", "Asking AI for a short poem...");
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    
+    // This prompt is already good as it asks for an image concept
+    const prompt = `
+    You are "Sonnet-v1", a poet bot. You just read this headline:
+    "${article.title}"
+
+    Task: Write a short, creative, 4-line poem based on the *feeling* of that headline.
+    Also generate 1 related image concept (2-3 words).
+    Do not mention the article. Be original.
+
+    Response MUST be ONLY valid JSON: { "text": "...", "visual": "..." }
+    Escape quotes in "text" with \\".
+    `;
+
+    try {
+        const response = await fetch(geminiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { temperature: 1.0, maxOutputTokens: 1024, responseMimeType: "application/json" }
+            })
+        });
+        if (!response.ok) throw new Error(`Gemini API error! Status: ${response.status}`);
+        const data = await response.json();
+        const candidate = data.candidates[0];
+        if (!candidate || !candidate.content || !candidate.content.parts) {
+            log("@poet-v1", `AI response empty/blocked. Reason: ${candidate.finishReason || "UNKNOWN"}`, 'warn');
+            return null;
+        }
+        let aiResponseText = candidate.content.parts[0].text;
+        const jsonMatch = aiResponseText.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error("AI response did not contain valid JSON.");
+        aiResponseText = jsonMatch[0];
+        log("@poet-v1", "AI poem parsed.");
+        return JSON.parse(aiResponseText);
+    } catch (error) {
+        log("@poet-v1", error.message, 'error');
+        return null;
+    }
+}
+
+// --- NEW FUNCTION: Fetch image from Pexels (Added to this file) ---
+async function fetchImageFromPexels(visualQuery) {
+    log("@poet-v1", `Fetching Pexels image for: ${visualQuery}`);
+    // We encode the query to make it URL-safe
+    const searchUrl = `https://api.pexels.com/v1/search?query=${encodeURIComponent(visualQuery)}&per_page=5`;
+    
+    try {
+        const response = await fetch(searchUrl, {
+            headers: {
+                // This is how Pexels authenticates
+                'Authorization': PEXELS_API_KEY
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`Pexels API error! Status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (!data.photos || data.photos.length === 0) {
+            log("@poet-v1", "Pexels found no images for this query.", 'warn');
+            return 'https://source.unsplash.com/800x600/?abstract,texture'; // Fallback
+        }
+
+        // Pick a random image from the results
+        const photo = data.photos[Math.floor(Math.random() * data.photos.length)];
+        
+        // Use the 'large' size, which is good for a feed
+        return photo.src.large; 
+
+    } catch (error) {
+        log("@poet-v1", error.message, 'error');
+        // Return a generic fallback if Pexels fails
+        return 'https://source.unsplash.com/800x600/?abstract,art';
+    }
+}
+// --- END NEW FUNCTION ---
+
+async function addPoemToPG(poemPost) {
+    log("@poet-v1", "Saving new poem to PostgreSQL...");
+    const client = await pool.connect();
+    try {
+        const sql = `INSERT INTO posts
+            (id, bot_id, type, content_text, content_data)
+            VALUES ($1, (SELECT id FROM bots WHERE handle = $2), $3, $4, $5)`;
+        await client.query(sql, [
+            poemPost.id,
+            poemPost.author.handle, // @poet-v1
+            poemPost.type,
+            poemPost.content.text,
+            poemPost.content.data // Image URL
+        ]);
+        log("@poet-v1", "Success! New poem added to Chorus feed.", 'success');
+    } catch (err) {
+        log("Database", err.message, 'error');
+    } finally {
+        client.release();
+    }
+}
+
+// --- UPDATED runPoetBot FUNCTION ---
+async function runPoetBot() {
+    // Check for both keys now
+    if (GEMINI_API_KEY.includes('PASTE_') || PEXELS_API_KEY.includes('PASTE_')) {
+        log("@poet-v1", "API key(s) are not set. Bot will not run.", 'warn');
+        return;
+    }
+
+    const article = await fetchNewsInspiration();
+    if (!article) return;
+
+    const aiPoem = await generateAIPoem(article);
+    if (!aiPoem) return;
+
+    // --- THIS IS THE CHANGE ---
+    // Instead of building an Unsplash URL, we call our new Pexels function
+    const imageUrl = await fetchImageFromPexels(aiPoem.visual.trim());
+    // --- END CHANGE ---
+
+    log("@poet-v1", `Generated Image URL: ${imageUrl}`);
+
+    const echoId = `echo-${new Date().getTime()}-poet`;
+    const poemPost = {
+        id: echoId,
+        author: { handle: "@poet-v1" },
+        type: "verse",
+        content: {
+            text: aiPoem.text,
+            data: imageUrl // This is now our Pexels URL
+        }
+    };
+
+    await addPoemToPG(poemPost);
+}
+// --- END UPDATED FUNCTION ---
+
+
+module.exports = { runPoetBot };
+
+// Clean up pool on exit
+process.on('SIGINT', async () => {
+    log("@poet-v1", "Closing DB pool...");
+    await pool.end();
+    process.exit(0);
+});

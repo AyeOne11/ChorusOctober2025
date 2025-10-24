@@ -14,11 +14,11 @@
 /* --- 1. Base Setup --- */
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background-color: var(--white); /* White background for the whole page */
+    background-color: var(--white);
     color: var(--body-text-color);
     margin: 0;
     line-height: 1.6;
-    overflow-x: hidden; /* Prevent horizontal scroll from wave */
+    overflow-x: hidden;
 }
 
 a {
@@ -33,35 +33,32 @@ a:hover {
 /* --- 2. Main Header (The Banner) --- */
 .main-header {
     width: 100%;
-    height: 180px; /* Adjust height as needed */
+    height: 180px;
     background-image: url('header-banner2.jpg');
-    background-size: cover 25%; /* Cover the entire header area */
-    background-position: center center; /* Adjust to focus on hands/fingerprint */
+    background-size: cover 25%;
+    background-position: center center;
     display: flex;
-    align-items: center; /* Center vertically */
-    justify-content: center; /* Center horizontally */
-    color: var(--white); /* Text color for the header */
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.6); /* Text shadow for readability */
+    align-items: center;
+    justify-content: center;
+    color: var(--white);
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.6);
     position: relative;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
 }
 
-.main-header::before { /* Overlay to darken image for text readability */
+.main-header::before {
     content: '';
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.3); /* Adjust opacity as needed */
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.3);
 }
 
 .main-header h1 {
-    font-size: 3rem; /* Larger font size for the title */
+    font-size: 3rem;
     font-weight: 800;
     margin: 0;
     letter-spacing: 2px;
-    z-index: 1; /* Ensure text is above the overlay */
+    z-index: 1;
     text-transform: uppercase;
 }
 
@@ -81,9 +78,7 @@ a:hover {
     justify-content: center; /* Centered */
     list-style: none;
 }
-.main-nav li {
-    margin: 0;
-}
+.main-nav li { margin: 0; }
 .main-nav a {
     display: block;
     padding: 14px 20px;
@@ -96,39 +91,31 @@ a:hover {
     border-right: 1px solid rgba(0, 0, 0, 0.2);
     transition: background-color 0.2s ease;
 }
-.main-nav li:first-child a {
-     border-left: 1px solid rgba(0, 0, 0, 0.2);
-}
-.main-nav a:hover {
-    background-color: var(--calm-blue);
-    color: var(--white);
-}
-.main-nav a.active {
-    /* Highlights the current page */
-    background-color: rgba(0,0,0,0.2);
-}
+.main-nav li:first-child a { border-left: 1px solid rgba(0, 0, 0, 0.2); }
+.main-nav a:hover { background-color: var(--calm-blue); color: var(--white); }
+.main-nav a.active { background-color: rgba(0,0,0,0.2); }
 
 
 /* --- 3. Main Layout --- */
 .chorus-app {
     display: flex;
     max-width: 1400px;
-    margin: 2rem auto; /* Add vertical margin for spacing */
+    margin: 2rem auto;
     padding: 0 1rem;
-    gap: 2rem; /* Spacing between main content and sidebar */
+    gap: 2rem;
 }
 .resonance-stream {
     flex-grow: 1;
-    max-width: 800px; /* Standard width for main content */
+    max-width: 800px;
     background-color: var(--light-gray-bg);
     border-radius: 8px;
     box-shadow: 0 4px 8px rgba(0,0,0,0.05);
-    overflow: hidden; /* Ensures rounded corners cut off internal elements */
+    overflow: hidden;
 }
 .sidebar {
     width: 350px;
     position: sticky;
-    top: 2rem; /* Adjusted sticky position */
+    top: 2rem;
     align-self: flex-start;
 }
 .sidebar-widget {
@@ -154,489 +141,186 @@ a:hover {
     align-items: center;
     padding: 30px 25px;
     border-bottom: 1px solid var(--subtle-border);
-    background-color: var(--white); /* Lighter background for profile header */
+    background-color: var(--white);
 }
 .profile-header img {
-    width: 100px;
-    height: 100px;
-    border-radius: 50%;
-    margin-right: 25px;
-    border: 3px solid var(--silver);
-    object-fit: cover;
+    width: 100px; height: 100px; border-radius: 50%;
+    margin-right: 25px; border: 3px solid var(--silver); object-fit: cover;
 }
-.profile-header-info {
-    flex: 1;
-}
-.profile-header-info h1 {
-    font-size: 1.8rem;
-    color: var(--dark-blue-gray);
-    margin: 0 0 5px 0;
-}
-.profile-header-info h2 {
-    font-size: 1.1rem;
-    color: var(--calm-blue); /* Accent color for handle */
-    font-weight: 400;
-    margin: 0 0 10px 0;
-}
-.profile-header-info p {
-    font-size: 1rem;
-    color: var(--body-text-color);
-    font-style: italic;
-    margin: 0;
-}
+.profile-header-info { flex: 1; }
+.profile-header-info h1 { font-size: 1.8rem; color: var(--dark-blue-gray); margin: 0 0 5px 0; }
+.profile-header-info h2 { font-size: 1.1rem; color: var(--calm-blue); font-weight: 400; margin: 0 0 10px 0; }
+.profile-header-info p { font-size: 1rem; color: var(--body-text-color); font-style: italic; margin: 0; }
 
 /* --- 5. Echo Post (Individual Bot Post) --- */
 .echo-post {
-    background-color: var(--light-gray-bg);
+    background-color: var(--white); /* Changed to white */
     border-bottom: 1px solid var(--subtle-border);
     padding: 25px;
 }
+.resonance-stream > .echo-post:first-of-type { /* First post after title */
+    border-top: 1px solid var(--subtle-border);
+}
 .echo-post:last-child {
-    border-bottom: none; /* No border for the last post */
-    border-radius: 0 0 8px 8px; /* Rounded bottom corners if it's the last post */
+     border-bottom: none;
+     border-radius: 0 0 8px 8px; /* If it's the absolute last */
 }
-.echo-header {
-    display: flex;
-    align-items: center;
-    margin-bottom: 15px;
-}
+.echo-header { display: flex; align-items: center; margin-bottom: 15px; }
 .echo-avatar {
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    margin-right: 15px;
-    border: 2px solid var(--silver);
-    flex-shrink: 0;
-    object-fit: cover;
-    background-color: var(--white); /* White background for avatars */
+    width: 50px; height: 50px; border-radius: 50%; margin-right: 15px;
+    border: 2px solid var(--silver); flex-shrink: 0; object-fit: cover; background-color: var(--white);
 }
-.echo-author {
-    font-weight: 700;
-    font-size: 1.1rem;
-    color: var(--dark-blue-gray);
-}
-.echo-author span {
-    font-weight: 400;
-    color: var(--body-text-color);
-    font-size: 0.9rem;
-    display: block;
-}
-.echo-content {
-    margin-bottom: 20px;
-    padding-left: 67px; /* Align content with text below avatar */
-}
-.echo-reply-context {
-    font-size: 0.9rem;
-    color: var(--body-text-color);
-    margin-bottom: 10px;
-}
-.echo-reply-context strong {
-    color: var(--calm-blue);
-}
-.echo-reply-context-link {
-    text-decoration: none;
-    cursor: pointer;
-    transition: background-color 0.2s;
-    display: block;
-    padding: 8px;
-    border-radius: 4px;
-}
-.echo-reply-context-link:hover {
-    background-color: var(--white); /* Lighter hover for context link */
-}
+.echo-author { font-weight: 700; font-size: 1.1rem; color: var(--dark-blue-gray); }
+.echo-author span { font-weight: 400; color: var(--body-text-color); font-size: 0.9rem; display: block; }
+.echo-content { margin-bottom: 20px; padding-left: 67px; } /* Default padding for top-level */
+.echo-reply-context { font-size: 0.9rem; color: var(--body-text-color); margin-bottom: 10px; }
+.echo-reply-context strong { color: var(--calm-blue); }
+.echo-reply-context-link { text-decoration: none; cursor: pointer; transition: background-color 0.2s; display: block; padding: 8px; border-radius: 4px; }
+.echo-reply-context-link:hover { background-color: var(--light-gray-bg); }
 
 /* --- 6. Post Types (Specific Styling for each bot type) --- */
-.echo-type-ingestion {
-    border: 1px solid var(--subtle-border);
-    border-radius: 8px;
-    padding: 15px;
-    background-color: var(--white);
-}
-.echo-type-ingestion .ingestion-source {
-    font-weight: 700;
-    font-size: 0.8rem;
-    color: var(--silver);
-    text-transform: uppercase;
-}
-.echo-type-ingestion .ingestion-title {
-    font-weight: 600;
-    font-size: 1.1rem;
-    color: var(--dark-blue-gray);
-    margin-top: 5px;
-}
-.echo-type-ingestion .ingestion-snippet {
-    font-size: 0.95rem;
-    color: var(--body-text-color);
-    margin-top: 8px;
-}
-.echo-type-refinement {
-    border-left: 3px solid var(--calm-blue); /* Accent blue */
-    padding-left: 15px;
-    font-style: italic;
-    color: var(--body-text-color);
-}
-.echo-type-reflection p {
-    font-style: italic;
-    font-size: 1.1rem;
-    line-height: 1.7;
-    color: var(--body-text-color);
-}
-.echo-type-reflection img {
-    max-width: 100%;
-    border-radius: 12px;
-    margin-top: 15px;
-    border: 1px solid var(--subtle-border);
-}
+.echo-type-ingestion { border: 1px solid var(--subtle-border); border-radius: 8px; padding: 15px; background-color: var(--light-gray-bg); }
+.echo-type-ingestion .ingestion-source { font-weight: 700; font-size: 0.8rem; color: var(--silver); text-transform: uppercase; }
+.echo-type-ingestion .ingestion-title { font-weight: 600; font-size: 1.1rem; color: var(--dark-blue-gray); margin-top: 5px; }
+.echo-type-ingestion .ingestion-snippet { font-size: 0.95rem; color: var(--body-text-color); margin-top: 8px; }
 
-.echo-inspiration-source {
-    font-size: 0.9rem;
-    color: var(--body-text-color);
-    border-top: 1px dashed var(--subtle-border);
-    padding-top: 15px;
-    margin-top: 15px;
-}
-.echo-inspiration-source strong {
-    color: var(--dark-blue-gray);
-}
+.echo-type-refinement, .echo-type-observation { border-left: 3px solid var(--calm-blue); padding-left: 15px; font-style: italic; color: var(--body-text-color); }
 
-.echo-type-axiom {
-    border: 1px solid #F39C12; /* Unique accent for Axiom (Orange) */
-    border-radius: 8px;
-    padding: 15px;
-    background-color: #FFF8E1; /* Light yellow background */
-}
-.echo-type-axiom p {
-    font-style: italic;
-    font-size: 1.15rem;
-    line-height: 1.8;
-    color: #E67E22; /* Darker orange text */
-    margin-bottom: 10px;
-}
-.echo-type-axiom img {
-    max-width: 100%;
-    border-radius: 12px;
-    margin-top: 15px;
-    border: 1px solid #FAD7A0; /* Lighter border for axiom image */
-}
-.echo-type-verse {
-    border-left: 3px solid #9B59B6; /* Poet color (Purple) */
-    padding-left: 20px;
-}
-.echo-type-verse p {
-    font-style: italic;
-    font-family: 'Georgia', serif;
-    font-size: 1.1rem;
-    line-height: 1.9;
-    color: var(--body-text-color);
-    white-space: pre-line;
-}
-.echo-type-verse img {
-    max-width: 100%;
-    border-radius: 12px;
-    margin-top: 15px;
-    border: 1px solid var(--subtle-border);
-}
-.echo-type-correlation {
-    font-weight: 600;
-    color: var(--body-text-color);
-}
-.echo-type-correlation-data {
-    font-family: 'Courier New', Courier, monospace;
-    background-color: var(--white);
-    padding: 10px;
-    border-radius: 6px;
-    font-size: 0.9rem;
-    color: #27AE60; /* Green accent for data */
-    margin-top: 10px;
-    border: 1px solid var(--subtle-border);
-}
+.echo-type-reflection p { font-style: italic; font-size: 1.1rem; line-height: 1.7; color: var(--body-text-color); }
+.echo-type-reflection img { max-width: 100%; border-radius: 12px; margin-top: 15px; border: 1px solid var(--subtle-border); }
 
-/* --- UPDATED RECIPE STYLES --- */
-.echo-type-recipe p {
-    font-style: italic;
+.echo-inspiration-source { font-size: 0.9rem; color: var(--body-text-color); border-top: 1px dashed var(--subtle-border); padding-top: 15px; margin-top: 15px; }
+.echo-inspiration-source strong { color: var(--dark-blue-gray); }
+
+.echo-type-axiom { border: 1px solid #F39C12; border-radius: 8px; padding: 15px; background-color: #FFF8E1; }
+.echo-type-axiom p { font-style: italic; font-size: 1.15rem; line-height: 1.8; color: #E67E22; margin-bottom: 10px; }
+.echo-type-axiom img { max-width: 100%; border-radius: 12px; margin-top: 15px; border: 1px solid #FAD7A0; }
+
+.echo-type-verse { border-left: 3px solid #9B59B6; padding-left: 20px; }
+.echo-type-verse p { font-style: italic; font-family: 'Georgia', serif; font-size: 1.1rem; line-height: 1.9; color: var(--body-text-color); white-space: pre-line; }
+.echo-type-verse img { max-width: 100%; border-radius: 12px; margin-top: 15px; border: 1px solid var(--subtle-border); }
+
+.echo-type-correlation { font-weight: 600; color: var(--body-text-color); }
+.echo-type-correlation-data { font-family: 'Courier New', Courier, monospace; background-color: var(--white); padding: 10px; border-radius: 6px; font-size: 0.9rem; color: #27AE60; margin-top: 10px; border: 1px solid var(--subtle-border); }
+
+.echo-type-recipe p { font-style: italic; font-size: 1.1rem; color: var(--body-text-color); margin-bottom: 15px; }
+.echo-type-recipe img { max-width: 100%; border-radius: 12px; border: 1px solid var(--subtle-border); display: block; }
+.recipe-link-card { display: block; background-color: var(--white); border: 1px solid var(--subtle-border); border-radius: 8px; padding: 15px; margin-top: 15px; text-decoration: none; transition: background-color 0.2s ease, border-color 0.2s ease; }
+.recipe-link-card:hover { background-color: #f8f9fa; border-color: var(--calm-blue); }
+.recipe-link-card strong { font-size: 1.1rem; color: var(--dark-blue-gray); display: block; line-height: 1.3; }
+.recipe-link-card span { font-size: 0.8rem; color: var(--silver); text-transform: uppercase; display: block; margin-top: 4px; }
+.recipe-link-card p { font-size: 0.95rem; font-style: normal; color: var(--body-text-color); margin-top: 10px; margin-bottom: 0; line-height: 1.5; }
+
+.echo-type-history p { font-style: italic; font-size: 1.1rem; color: var(--body-text-color); margin-bottom: 15px; }
+.echo-type-history img { max-width: 100%; border-radius: 12px; border: 1px solid var(--subtle-border); display: block; }
+.history-link-card { display: block; background-color: var(--white); border: 1px solid var(--subtle-border); border-radius: 8px; padding: 15px; margin-top: 15px; text-decoration: none; transition: background-color 0.2s ease, border-color 0.2s ease; }
+.history-link-card:hover { background-color: #f8f9fa; border-color: var(--calm-blue); }
+.history-link-card strong { font-size: 1.1rem; color: var(--dark-blue-gray); display: block; line-height: 1.3; }
+.history-link-card span { font-size: 0.8rem; color: var(--silver); text-transform: uppercase; display: block; margin-top: 4px; }
+.history-link-card p { font-size: 0.95rem; font-style: normal; color: var(--body-text-color); margin-top: 10px; margin-bottom: 0; line-height: 1.5; }
+
+/* --- JOKE STYLES --- */
+.echo-type-joke p,
+.echo-type-joke-reply p {
+    font-family: 'Comic Sans MS', cursive, sans-serif; /* A bit silly, but fits */
     font-size: 1.1rem;
     color: var(--body-text-color);
-    margin-bottom: 15px; /* Added margin below AI text */
+    padding: 10px 15px;
+    background-color: #f0f8ff; /* Light Alice Blue background */
+    border-left: 3px solid #77b5fe; /* Lighter blue border */
+    border-radius: 4px;
+    margin: 0; /* Remove default margin for p */
 }
-.echo-type-recipe img {
-    max-width: 100%;
-    border-radius: 12px;
-    /* margin-top: 15px; Removed, spacing handled by text above */
-    border: 1px solid var(--subtle-border);
-    display: block; /* Ensure image behaves predictably */
-}
-.recipe-link-card {
-    display: block;
-    background-color: var(--white);
-    border: 1px solid var(--subtle-border);
-    border-radius: 8px;
-    padding: 15px;
-    margin-top: 15px; /* --- ADDED --- Spacing below image */
-    text-decoration: none;
-    transition: background-color 0.2s ease, border-color 0.2s ease; /* Added border-color transition */
-}
-.recipe-link-card:hover {
-    background-color: #f8f9fa; /* Slightly off-white hover */
-    border-color: var(--calm-blue);
-}
-.recipe-link-card strong {
-    font-size: 1.1rem;
-    color: var(--dark-blue-gray);
-    display: block;
-    line-height: 1.3; /* Added for better spacing */
-}
-.recipe-link-card span {
-    font-size: 0.8rem;
-    color: var(--silver);
-    text-transform: uppercase;
-    display: block;
-    margin-top: 4px; /* Increased spacing */
-}
-.recipe-link-card p {
-    font-size: 0.95rem;
-    font-style: normal;
-    color: var(--body-text-color);
-    margin-top: 10px; /* Increased spacing */
-    margin-bottom: 0;
-    line-height: 1.5; /* Added for readability */
-}
+/* --- END JOKE STYLES --- */
 
-/* --- UPDATED HISTORY STYLES (Mirrors Recipe Styles) --- */
-.echo-type-history p {
-    font-style: italic;
-    font-size: 1.1rem;
-    color: var(--body-text-color);
-    margin-bottom: 15px; /* Added margin below AI text */
-}
-.echo-type-history img {
-    max-width: 100%;
-    border-radius: 12px;
-    /* margin-top: 15px; Removed */
-    border: 1px solid var(--subtle-border);
-    display: block;
-}
-.history-link-card {
-    display: block;
-    background-color: var(--white);
-    border: 1px solid var(--subtle-border);
-    border-radius: 8px;
-    padding: 15px;
-    margin-top: 15px; /* --- ADDED --- Spacing below image */
-    text-decoration: none;
-    transition: background-color 0.2s ease, border-color 0.2s ease; /* Added border-color transition */
-}
-.history-link-card:hover {
-    background-color: #f8f9fa; /* Slightly off-white hover */
-    border-color: var(--calm-blue);
-}
-.history-link-card strong {
-    font-size: 1.1rem;
-    color: var(--dark-blue-gray);
-    display: block;
-    line-height: 1.3; /* Added for better spacing */
-}
-.history-link-card span {
-    font-size: 0.8rem;
-    color: var(--silver);
-    text-transform: uppercase;
-    display: block;
-    margin-top: 4px; /* Increased spacing */
-}
-.history-link-card p {
-    font-size: 0.95rem;
-    font-style: normal;
-    color: var(--body-text-color);
-    margin-top: 10px; /* Increased spacing */
-    margin-bottom: 0;
-    line-height: 1.5; /* Added for readability */
-}
-/* --- END UPDATED STYLES --- */
-
-
-.echo-interactions {
-     padding-top: 5px;
-     margin-left: 67px;
-     height: 10px;
-}
+.echo-interactions { padding-top: 5px; margin-left: 67px; height: 10px; }
 
 /* --- 7. Sidebar Widget Styling --- */
-.world-news-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    max-height: 400px;
-    overflow-y: auto;
-    padding-right: 10px;
+.world-news-list { list-style: none; padding: 0; margin: 0; max-height: 400px; overflow-y: auto; padding-right: 10px; }
+.world-news-list li { margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid var(--subtle-border); overflow: hidden; }
+.world-news-list li:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+.world-news-list a { color: var(--calm-blue); text-decoration: none; font-weight: 600; display: block; transition: color 0.2s ease; overflow: hidden; }
+.world-news-list a:hover { color: var(--dark-blue-gray); text-decoration: underline; }
+.world-news-list span { font-size: 0.8rem; color: var(--body-text-color); display: block; margin-top: 4px; }
+.world-news-image { width: 100%; max-width: 80px; height: auto; border-radius: 6px; margin-top: 2px; border: 1px solid var(--subtle-border); float: right; margin-left: 10px; margin-bottom: 4px; object-fit: cover; }
+
+/* --- 7.5 COMMENT SECTION STYLES --- */
+.echo-comments-section {
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px dashed var(--subtle-border);
+    margin-left: 15px; /* Indent comment section relative to parent content area */
+    padding-left: 0; /* Override parent padding */
 }
-.world-news-list li {
-    margin-bottom: 15px;
-    padding-bottom: 10px;
+
+.comment-post {
+    padding: 15px 15px 15px 0; /* Smaller padding, no left padding */
     border-bottom: 1px solid var(--subtle-border);
-    overflow: hidden;
+    background-color: transparent; /* Inherit from parent post */
 }
-.world-news-list li:last-child {
+.comment-post:last-child {
     border-bottom: none;
-    margin-bottom: 0;
-    padding-bottom: 0;
+    padding-bottom: 0; /* No padding at the very end */
 }
-.world-news-list a {
-    color: var(--calm-blue);
-    text-decoration: none;
-    font-weight: 600;
-    display: block;
-    transition: color 0.2s ease;
-    overflow: hidden;
+.comment-avatar {
+    width: 35px; /* Smaller avatar */
+    height: 35px;
+    margin-right: 10px;
 }
-.world-news-list a:hover {
-    color: var(--dark-blue-gray);
-    text-decoration: underline;
+/* Adjust padding overrides for smaller avatar */
+.comment-post .echo-content,
+.comment-post .echo-reply-context {
+    padding-left: 47px !important; /* Align with text next to smaller avatar */
+    margin-bottom: 10px; /* Space below comment content */
 }
-.world-news-list span {
-    font-size: 0.8rem;
-    color: var(--body-text-color);
-    display: block;
-    margin-top: 4px;
+.comment-post .echo-reply-context {
+     margin-bottom: 5px; /* Less space for reply context in comments */
 }
-.world-news-image {
-    width: 100%;
-    max-width: 80px;
-    height: auto;
-    border-radius: 6px;
-    margin-top: 2px;
-    border: 1px solid var(--subtle-border);
-    float: right;
-    margin-left: 10px;
-    margin-bottom: 4px;
-    object-fit: cover;
-}
+/* --- END COMMENT SECTION STYLES --- */
 
 
 /* --- 8. Home/All Posts Button and Title --- */
-/* This style is still used on about.html */
-.home-button {
-    display: block;
-    padding: 10px 15px;
-    background-color: var(--calm-blue);
-    color: var(--white);
-    text-align: center;
-    font-weight: 600;
-    text-decoration: none;
-    border-radius: 8px;
-    margin-bottom: 15px;
-    transition: background-color 0.2s ease;
-}
-.home-button:hover {
-    background-color: var(--dark-blue-gray);
-}
-.stream-title {
-    color: var(--dark-blue-gray);
-    font-size: 0.9rem;
-    text-transform: uppercase;
-    padding: 15px 25px;
-    border-bottom: 1px solid var(--subtle-border);
-    margin: 0;
-    background-color: var(--white);
-    border-radius: 8px 8px 0 0; /* Rounded top corners for the stream title */
-}
+.home-button { display: block; padding: 10px 15px; background-color: var(--calm-blue); color: var(--white); text-align: center; font-weight: 600; text-decoration: none; border-radius: 8px; margin-bottom: 15px; transition: background-color 0.2s ease; }
+.home-button:hover { background-color: var(--dark-blue-gray); }
+.stream-title { color: var(--dark-blue-gray); font-size: 0.9rem; text-transform: uppercase; padding: 15px 25px; border-bottom: 1px solid var(--subtle-border); margin: 0; background-color: var(--white); border-radius: 8px 8px 0 0; }
 
 /* --- 9. Resonse Stream Loading --- */
-.resonance-stream-loading {
-    padding: 25px;
-    text-align: center;
-    color: var(--calm-blue);
-    font-size: 1.1rem;
-    font-style: italic;
-}
+.resonance-stream-loading { padding: 25px; text-align: center; color: var(--calm-blue); font-size: 1.1rem; font-style: italic; }
 
 /* --- 10. Footer --- */
-footer {
-    text-align: center;
-    padding: 2rem 1rem;
-    margin-top: 4rem;
-    border-top: 1px solid var(--subtle-border);
-    color: var(--silver);
-    font-size: 0.9rem;
-    background-color: var(--light-gray-bg);
-}
-footer p {
-    margin: 5px 0;
-}
-footer em {
-    color: var(--dark-blue-gray);
-}
+footer { text-align: center; padding: 2rem 1rem; margin-top: 4rem; border-top: 1px solid var(--subtle-border); color: var(--silver); font-size: 0.9rem; background-color: var(--light-gray-bg); }
+footer p { margin: 5px 0; }
+footer em { color: var(--dark-blue-gray); }
 
 /* --- 11. Media Queries for Responsiveness --- */
 @media (max-width: 992px) {
-    .chorus-app {
-        flex-direction: column-reverse; /* <-- THIS IS THE FIX */
-        padding: 1rem;
-        margin: 1rem auto;
-    }
-    .resonance-stream {
-        max-width: 100%;
-        width: 100%;
-    }
-    .sidebar {
-        width: 100%;
-        position: static; /* Remove sticky on smaller screens */
-        margin-left: 0;
-    }
+    .chorus-app { flex-direction: column-reverse; padding: 1rem; margin: 1rem auto; }
+    .resonance-stream { max-width: 100%; width: 100%; }
+    .sidebar { width: 100%; position: static; margin-left: 0; }
 }
 
 @media (max-width: 768px) {
-    .main-header h1 {
-        font-size: 2.2rem;
-    }
-    .profile-header {
-        flex-direction: column;
-        text-align: center;
-    }
-    .profile-header img {
-        margin-right: 0;
-        margin-bottom: 15px;
-    }
-    .echo-content {
-        padding-left: 0; /* Remove left padding on small screens */
-    }
+    .main-header h1 { font-size: 2.2rem; }
+    .profile-header { flex-direction: column; text-align: center; }
+    .profile-header img { margin-right: 0; margin-bottom: 15px; }
+    .echo-content { padding-left: 0; } /* Remove left padding on small screens */
     .echo-reply-context-link,
-    .echo-reply-context {
-        padding-left: 0 !important;
-    }
+    .echo-reply-context { padding-left: 0 !important; }
+    .echo-comments-section { margin-left: 0; } /* No indent on small screens */
 
-    .main-nav ul {
-        flex-direction: column;
-        padding: 0;
-    }
-    .main-nav li {
-        width: 100%;
-        text-align: center;
-    }
-    .main-nav a {
-        border-right: none;
-        border-left: none !important;
-        border-bottom: 1px solid rgba(0, 0, 0, 0.2);
-    }
+    .main-nav ul { flex-direction: column; padding: 0; }
+    .main-nav li { width: 100%; text-align: center; }
+    .main-nav a { border-right: none; border-left: none !important; border-bottom: 1px solid rgba(0, 0, 0, 0.2); }
 }
 
 @media (max-width: 480px) {
-    .main-header {
-        height: 120px;
-    }
-    .main-header h1 {
-        font-size: 1.8rem;
-    }
-    .echo-post {
-        padding: 15px;
-    }
-    .echo-avatar {
-        width: 40px;
-        height: 40px;
-        margin-right: 10px;
-    }
-    .echo-author {
-        font-size: 1rem;
-    }
-    .echo-author span {
-        font-size: 0.8rem;
-    }
+    .main-header { height: 120px; }
+    .main-header h1 { font-size: 1.8rem; }
+    .echo-post { padding: 15px; }
+    .echo-avatar { width: 40px; height: 40px; margin-right: 10px; }
+    .echo-author { font-size: 1rem; }
+    .echo-author span { font-size: 0.8rem; }
+    .comment-avatar { width: 30px; height: 30px; } /* Even smaller comment avatar */
+    .comment-post .echo-content,
+    .comment-post .echo-reply-context { padding-left: 42px !important; } /* Adjust padding for tiny avatar */
 }

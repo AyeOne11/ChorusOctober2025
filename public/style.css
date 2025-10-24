@@ -231,11 +231,15 @@ a:hover {
     margin: 0;
 }
 
+/* --- UPDATED --- */
 .echo-interactions {
      padding-top: 5px;
      margin-left: 67px;
      /* height: 10px; <-- REMOVED */
+     margin-bottom: 0; /* ADDED */
+     padding-bottom: 0; /* ADDED */
 }
+/* --- END UPDATE --- */
 
 /* --- 7. Sidebar Widget Styling --- */
 .world-news-list { list-style: none; padding: 0; margin: 0; max-height: 400px; overflow-y: auto; padding-right: 10px; }
@@ -251,32 +255,39 @@ a:hover {
     margin-top: 20px;
     padding-top: 15px;
     border-top: 1px dashed var(--subtle-border);
-    margin-left: 15px; /* Indent comment section relative to parent content area */
-    padding-left: 0; /* Override parent padding */
+    margin-left: 15px;
+    padding-left: 0;
 }
+/* --- ADDED --- */
+/* Remove padding/margin if the comment section itself is empty */
+.echo-comments-section:empty {
+    margin: 0;
+    padding: 0;
+    border-top: none; /* Hide the border too if empty */
+}
+/* --- END ADD --- */
 
 .comment-post {
-    padding: 15px 15px 15px 0; /* Smaller padding, no left padding */
+    padding: 15px 15px 15px 0;
     border-bottom: 1px solid var(--subtle-border);
-    background-color: transparent; /* Inherit from parent post */
+    background-color: transparent;
 }
 .comment-post:last-child {
     border-bottom: none;
-    padding-bottom: 0; /* No padding at the very end */
+    padding-bottom: 0;
 }
 .comment-avatar {
-    width: 35px; /* Smaller avatar */
+    width: 35px;
     height: 35px;
     margin-right: 10px;
 }
-/* Adjust padding overrides for smaller avatar */
 .comment-post .echo-content,
 .comment-post .echo-reply-context {
-    padding-left: 47px !important; /* Align with text next to smaller avatar */
-    margin-bottom: 10px; /* Space below comment content */
+    padding-left: 47px !important;
+    margin-bottom: 10px;
 }
 .comment-post .echo-reply-context {
-     margin-bottom: 5px; /* Less space for reply context in comments */
+     margin-bottom: 5px;
 }
 /* --- END COMMENT SECTION STYLES --- */
 
@@ -305,10 +316,10 @@ footer em { color: var(--dark-blue-gray); }
     .main-header h1 { font-size: 2.2rem; }
     .profile-header { flex-direction: column; text-align: center; }
     .profile-header img { margin-right: 0; margin-bottom: 15px; }
-    .echo-content { padding-left: 0; } /* Remove left padding on small screens */
+    .echo-content { padding-left: 0; }
     .echo-reply-context-link,
     .echo-reply-context { padding-left: 0 !important; }
-    .echo-comments-section { margin-left: 0; } /* No indent on small screens */
+    .echo-comments-section { margin-left: 0; }
 
     .main-nav ul { flex-direction: column; padding: 0; }
     .main-nav li { width: 100%; text-align: center; }
@@ -322,7 +333,7 @@ footer em { color: var(--dark-blue-gray); }
     .echo-avatar { width: 40px; height: 40px; margin-right: 10px; }
     .echo-author { font-size: 1rem; }
     .echo-author span { font-size: 0.8rem; }
-    .comment-avatar { width: 30px; height: 30px; } /* Even smaller comment avatar */
+    .comment-avatar { width: 30px; height: 30px; }
     .comment-post .echo-content,
-    .comment-post .echo-reply-context { padding-left: 42px !important; } /* Adjust padding for tiny avatar */
+    .comment-post .echo-reply-context { padding-left: 42px !important; }
 }

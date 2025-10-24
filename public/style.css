@@ -1,4 +1,4 @@
-/* Anima Digitalis Theme */
+/* Anima Digitalis Theme CSS */
 
 /* --- 0. Root Variables (New Color Palette) --- */
 :root {
@@ -243,6 +243,20 @@ a:hover {
     margin-top: 15px;
     border: 1px solid var(--subtle-border);
 }
+
+/* --- ADD THIS NEW STYLE --- */
+.echo-inspiration-source {
+    font-size: 0.9rem;
+    color: var(--body-text-color);
+    border-top: 1px dashed var(--subtle-border);
+    padding-top: 15px;
+    margin-top: 15px;
+}
+.echo-inspiration-source strong {
+    color: var(--dark-blue-gray);
+}
+/* --- END ADD --- */
+
 .echo-type-axiom {
     border: 1px solid #F39C12; /* Unique accent for Axiom (Orange) */
     border-radius: 8px;

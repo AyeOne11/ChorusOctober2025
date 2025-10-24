@@ -13,16 +13,15 @@ const { runMagnusBot } = require('./magnusBot.js');
 const { runArtistBot } = require('./artistBot.js');
 const { runRefinerBot } = require('./refinerBot.js');
 const { runPoetBot } = require('./poetBot.js');
+const { runChefBot } = require('./chefBot.js'); // <-- ADD THIS
 
 // --- App & Middleware Setup ---
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public')); // Serves index.html, directory.html etc.
-// --- ADD THIS BLOCK HERE ---
 // Explicitly serve index.html for the root route
 app.get('/', (req, res) => {
-    // Send the index.html file from the public directory
     res.sendFile(__dirname + '/public/index.html');
 });
 
@@ -45,28 +44,23 @@ const RSS_FEEDS = [
 const parser = new RssParser();
 let cachedNews = [];
 
-// --- UPDATED refreshNewsCache FUNCTION ---
 async function refreshNewsCache() {
   console.log('Server: Refreshing news cache...');
   const all = [];
-  for (const url of RSS_FEEDS) { // Uses RSS_FEEDS
+  for (const url of RSS_FEEDS) {
     try {
       const feed = await parser.parseURL(url);
-
-      // Map over feed items and try to extract image
       const items = feed.items.slice(0, 5).map(item => {
         let imageUrl = null;
-        // Try common places for images in RSS feeds
         if (item.enclosure && item.enclosure.url && item.enclosure.type.startsWith('image')) {
           imageUrl = item.enclosure.url;
         } else if (item['media:content'] && item['media:content'].$ && item['media:content'].$.url && item['media:content'].$.type.startsWith('image')) {
-          imageUrl = item['media:content'].$.url; // Common in Media RSS
+          imageUrl = item['media:content'].$.url;
         } else if (item.image && item.image.url) {
-            imageUrl = item.image.url; // Sometimes in an 'image' object
+            imageUrl = item.image.url;
         } else if (item.itunes && item.itunes.image) {
-            imageUrl = item.itunes.image; // Sometimes in itunes namespace
+            imageUrl = item.itunes.image;
         }
-        // Basic check for common image extensions if URL found elsewhere
          else if (typeof item.content === 'string') {
              const imgMatch = item.content.match(/<img[^>]+src="([^">]+)"/);
              if (imgMatch && imgMatch[1]) {
@@ -76,26 +70,23 @@ async function refreshNewsCache() {
                  }
              }
          }
-
         return {
           title: item.title,
           link: item.link,
           pubDate: item.pubDate || item.isoDate,
           source_id: feed.title,
-          imageUrl: imageUrl // Add the image URL if found
+          imageUrl: imageUrl
         };
       });
       all.push(...items);
-
     } catch (e) { console.error(`Server: RSS Error ${url}:`, e.message); }
   }
   cachedNews = all.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate)).slice(0, 10);
   console.log(`Server: News cache updated with ${cachedNews.length} articles.`);
 }
-// --- END UPDATED FUNCTION ---
 
 // === API Routes ===
-// 1. GET /api/world-news (For the sidebar)
+// 1. GET /api/world-news
 app.get('/api/world-news', (req, res) => {
     if (cachedNews.length === 0) {
         return res.status(503).json({ error: "News cache is building. Try again soon." });
@@ -103,7 +94,7 @@ app.get('/api/world-news', (req, res) => {
     res.json(cachedNews);
 });
 
-// 2. GET /api/bots (For the Bot Directory)
+// 2. GET /api/bots
 app.get('/api/bots', async (req, res) => {
     try {
         const sql = `
@@ -122,10 +113,11 @@ app.get('/api/bots', async (req, res) => {
 // 3. GET /api/posts (Main feed)
 app.get('/api/posts', async (req, res) => {
     try {
+        // --- SQL QUERY UPDATED ---
         const sql = `
             SELECT
                 p.id, p.type, p.reply_to_handle, p.reply_to_text, p.reply_to_id,
-                p.content_text, p.content_data, p.content_source, p.content_title, p.content_snippet,
+                p.content_text, p.content_data, p.content_source, p.content_title, p.content_snippet, p.content_link,
                 p.timestamp,
                 b.handle AS "bot_handle", b.name AS "bot_name", b.bio AS "bot_bio", b.avatarurl AS "bot_avatar"
             FROM posts p
@@ -135,6 +127,7 @@ app.get('/api/posts', async (req, res) => {
         `;
         const result = await pool.query(sql);
 
+        // --- MAPPING UPDATED ---
         const formattedPosts = result.rows.map(row => ({
             id: row.id,
             author: {
@@ -154,7 +147,8 @@ app.get('/api/posts', async (req, res) => {
                 data: row.content_data,
                 source: row.content_source,
                 title: row.content_title,
-                snippet: row.content_snippet
+                snippet: row.content_snippet,
+                link: row.content_link // <-- ADD THIS
             },
             timestamp: row.timestamp
         }));
@@ -177,16 +171,13 @@ app.get('/api/bot/:handle', async (req, res) => {
             WHERE handle = $1
         `;
         const result = await pool.query(sql, [handle]);
-        
         if (result.rows.length === 0) {
             return res.status(404).json({ error: "Bot not found." });
         }
-        
-        res.json(result.rows[0]); // Send back the first (and only) bot
-
+        res.json(result.rows[0]);
     } catch (err) {
         console.error(`Server: Error fetching bot ${handle}:`, err.message);
-        res.status(5Example: 00).json({ error: "Database error fetching bot." });
+        res.status(500).json({ error: "Database error fetching bot." });
     }
 });
 
@@ -194,10 +185,11 @@ app.get('/api/bot/:handle', async (req, res) => {
 app.get('/api/posts/by/:handle', async (req, res) => {
     const { handle } = req.params;
     try {
+        // --- SQL QUERY UPDATED ---
         const sql = `
             SELECT
                 p.id, p.type, p.reply_to_handle, p.reply_to_text, p.reply_to_id,
-                p.content_text, p.content_data, p.content_source, p.content_title, p.content_snippet,
+                p.content_text, p.content_data, p.content_source, p.content_title, p.content_snippet, p.content_link,
                 p.timestamp,
                 b.handle AS "bot_handle", b.name AS "bot_name", b.bio AS "bot_bio", b.avatarurl AS "bot_avatar"
             FROM posts p
@@ -208,6 +200,7 @@ app.get('/api/posts/by/:handle', async (req, res) => {
         `;
         const result = await pool.query(sql, [handle]);
 
+        // --- MAPPING UPDATED ---
         const formattedPosts = result.rows.map(row => ({
             id: row.id,
             author: {
@@ -227,7 +220,8 @@ app.get('/api/posts/by/:handle', async (req, res) => {
                 data: row.content_data,
                 source: row.content_source,
                 title: row.content_title,
-                snippet: row.content_snippet
+                snippet: row.content_snippet,
+                link: row.content_link // <-- ADD THIS
             },
             timestamp: row.timestamp
         }));
@@ -246,23 +240,19 @@ const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, async () => {
     console.log(`\nCHORUS AI SOCIETY (v2.1) LIVE: http://localhost:${PORT}`);
-
     console.log("Server: Ensure you have run 'node database.js' at least once to set up tables.");
 
-    // Initial news fetch
-    await refreshNewsCache(); // Needs RSS_FEEDS defined above
-
-    // --- Schedule News Cache ---
-    setInterval(refreshNewsCache, 2 * 60 * 1000); // Refresh news every 2 mins
+    await refreshNewsCache();
+    setInterval(refreshNewsCache, 2 * 60 * 1000);
 
     // --- Schedule Bots ---
     const runIngestCycle = async () => {
         try {
             console.log("\n--- Running Ingest Cycle ---");
-            await runBot(); // Runs @feed-ingestor AND @Analyst-v4
+            await runBot();
         } catch (e) { console.error("Server: Error in Ingest Cycle:", e.message); }
     };
-    setInterval(runIngestCycle, 32 * 60 * 1000); // Approx every 30 mins
+    setInterval(runIngestCycle, 32 * 60 * 1000);
     
     const runMagnusCycle = async () => {
         try {
@@ -270,7 +260,7 @@ app.listen(PORT, async () => {
             await runMagnusBot();
         } catch (e) { console.error("Server: Error in Magnus Cycle:", e.message); }
     };
-    setInterval(runMagnusCycle, 45 * 60 * 1000); // Approx every 45 mins
+    setInterval(runMagnusCycle, 45 * 60 * 1000);
     
     const runArtistCycle = async () => {
         try {
@@ -278,25 +268,32 @@ app.listen(PORT, async () => {
             await runArtistBot();
         } catch (e) { console.error("Server: Error in Artist Cycle:", e.message); }
     };
-    // --- UPDATED TIMER ---
     setInterval(runArtistCycle, 6 * 60 * 60 * 1000); // 6 hours
     
     const runRefinerCycle = async () => {
         try {
             console.log("\n--- Running Refiner Cycle ---");
-            await runRefinerBot(); // Runs @Critique-v2
+            await runRefinerBot();
         } catch (e) { console.error("Server: Error in Refiner Cycle:", e.message); }
     };
-    setInterval(runRefinerCycle, 20 * 60 * 1000); // Approx every 20 mins
+    setInterval(runRefinerCycle, 20 * 60 * 1000);
     
     const runPoetCycle = async () => {
         try {
             console.log("\n--- Running Poet Cycle ---");
-            await runPoetBot(); // Runs @poet-v1
+            await runPoetBot();
         } catch (e) { console.error("Server: Error in Poet Cycle:", e.message); }
     };
-    // --- UPDATED TIMER ---
     setInterval(runPoetCycle, 8 * 60 * 60 * 1000); // 8 hours
+
+    // --- ADD THE NEW BOT CYCLE ---
+    const runChefCycle = async () => {
+        try {
+            console.log("\n--- Running Chef Cycle ---");
+            await runChefBot();
+        } catch (e) { console.error("Server: Error in Chef Cycle:", e.message); }
+    };
+    setInterval(runChefCycle, 12 * 60 * 60 * 1000); // 12 hours (twice a day)
 
 
     // --- Initial Bot Posts (Staggered) ---
@@ -306,4 +303,5 @@ app.listen(PORT, async () => {
     setTimeout(runArtistCycle, 6000);
     setTimeout(runRefinerCycle, 8000);
     setTimeout(runPoetCycle, 5000);
+    setTimeout(runChefCycle, 7000); // <-- ADD THIS
 });

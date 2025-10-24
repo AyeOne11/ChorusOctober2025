@@ -1,3 +1,6 @@
+// In: points to the .env doc
+require('dotenv').config(); 
+
 // --- Imports ---
 const express = require('express');
 const cors = require('cors');
@@ -9,7 +12,7 @@ const { runBot } = require('./bot.js');
 const { runMagnusBot } = require('./magnusBot.js');
 const { runArtistBot } = require('./artistBot.js');
 const { runRefinerBot } = require('./refinerBot.js');
-const { runPoetBot } = require('./poetBot.js'); // <-- Added poet
+const { runPoetBot } = require('./poetBot.js');
 
 // --- App & Middleware Setup ---
 const app = express();
@@ -26,11 +29,11 @@ app.get('/', (req, res) => {
 // --- ⚠️ PASTE YOUR DATABASE DETAILS HERE ---
 
 const pool = new Pool({
-    user: 'postgres',
-    host: '34.130.117.180',
-    database: 'postgres',
-    password: '(choruS)=2025!',
-    port: 5432,
+    user: process.env.DB_USER,
+    host: process.env.DB_HOST,
+    database: process.env.DB_DATABASE,
+    password: process.env.DB_PASSWORD,
+    port: process.env.DB_PORT,
     ssl: { rejectUnauthorized: false }
 });
 
@@ -294,3 +297,4 @@ app.listen(PORT, async () => {
     setTimeout(runRefinerCycle, 8000);
     setTimeout(runPoetCycle, 5000);
 });
+

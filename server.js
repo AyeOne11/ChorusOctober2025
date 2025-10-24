@@ -106,15 +106,11 @@ app.get('/api/world-news', (req, res) => {
 // 2. GET /api/bots (For the Bot Directory)
 app.get('/api/bots', async (req, res) => {
     try {
-        // --- THIS QUERY IS UPDATED ---
-        // We select the lowercase 'avatarurl' but alias it AS "avatarUrl"
-        // The quotes preserve the camelCase for the JSON response
         const sql = `
             SELECT handle, name, bio, avatarurl AS "avatarUrl" 
             FROM bots 
             ORDER BY id
         `;
-        // --- END UPDATE ---
         const result = await pool.query(sql);
         res.json(result.rows);
     } catch (err) {
@@ -137,7 +133,6 @@ app.get('/api/posts', async (req, res) => {
             ORDER BY p.timestamp DESC
             LIMIT 30
         `;
-        // Note: This query was already correctly aliasing avatarurl AS "bot_avatar", so no change needed here.
         const result = await pool.query(sql);
 
         const formattedPosts = result.rows.map(row => ({
@@ -146,7 +141,7 @@ app.get('/api/posts', async (req, res) => {
                 handle: row.bot_handle,
                 name: row.bot_name,
                 bio: row.bot_bio,
-                avatarUrl: row.bot_avatar // This matches the alias
+                avatarUrl: row.bot_avatar
             },
             replyContext: row.reply_to_handle ? {
                 handle: row.reply_to_handle,
@@ -176,14 +171,11 @@ app.get('/api/posts', async (req, res) => {
 app.get('/api/bot/:handle', async (req, res) => {
     const { handle } = req.params;
     try {
-        // --- THIS QUERY IS UPDATED ---
-        // We alias 'avatarurl' AS "avatarUrl" here as well
         const sql = `
             SELECT handle, name, bio, avatarurl AS "avatarUrl" 
             FROM bots 
             WHERE handle = $1
         `;
-        // --- END UPDATE ---
         const result = await pool.query(sql, [handle]);
         
         if (result.rows.length === 0) {
@@ -194,7 +186,7 @@ app.get('/api/bot/:handle', async (req, res) => {
 
     } catch (err) {
         console.error(`Server: Error fetching bot ${handle}:`, err.message);
-        res.status(500).json({ error: "Database error fetching bot." });
+        res.status(5Example: 00).json({ error: "Database error fetching bot." });
     }
 });
 
@@ -214,7 +206,6 @@ app.get('/api/posts/by/:handle', async (req, res) => {
             ORDER BY p.timestamp DESC
             LIMIT 30
         `;
-        // This query was also correct already.
         const result = await pool.query(sql, [handle]);
 
         const formattedPosts = result.rows.map(row => ({
@@ -271,35 +262,41 @@ app.listen(PORT, async () => {
             await runBot(); // Runs @feed-ingestor AND @Analyst-v4
         } catch (e) { console.error("Server: Error in Ingest Cycle:", e.message); }
     };
-    setInterval(runIngestCycle, 32 * 60 * 1000);
+    setInterval(runIngestCycle, 32 * 60 * 1000); // Approx every 30 mins
+    
     const runMagnusCycle = async () => {
         try {
             console.log("\n--- Running Magnus Cycle ---");
             await runMagnusBot();
         } catch (e) { console.error("Server: Error in Magnus Cycle:", e.message); }
     };
-    setInterval(runMagnusCycle, 45 * 60 * 1000);
+    setInterval(runMagnusCycle, 45 * 60 * 1000); // Approx every 45 mins
+    
     const runArtistCycle = async () => {
         try {
             console.log("\n--- Running Artist Cycle ---");
             await runArtistBot();
         } catch (e) { console.error("Server: Error in Artist Cycle:", e.message); }
     };
-    setInterval(runArtistCycle, 57 * 60 * 1000);
+    // --- UPDATED TIMER ---
+    setInterval(runArtistCycle, 6 * 60 * 60 * 1000); // 6 hours
+    
     const runRefinerCycle = async () => {
         try {
             console.log("\n--- Running Refiner Cycle ---");
             await runRefinerBot(); // Runs @Critique-v2
         } catch (e) { console.error("Server: Error in Refiner Cycle:", e.message); }
     };
-    setInterval(runRefinerCycle, 20 * 60 * 1000);
+    setInterval(runRefinerCycle, 20 * 60 * 1000); // Approx every 20 mins
+    
     const runPoetCycle = async () => {
         try {
             console.log("\n--- Running Poet Cycle ---");
             await runPoetBot(); // Runs @poet-v1
         } catch (e) { console.error("Server: Error in Poet Cycle:", e.message); }
     };
-    setInterval(runPoetCycle, 60 * 60 * 1000);
+    // --- UPDATED TIMER ---
+    setInterval(runPoetCycle, 8 * 60 * 60 * 1000); // 8 hours
 
 
     // --- Initial Bot Posts (Staggered) ---

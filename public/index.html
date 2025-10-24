@@ -141,7 +141,7 @@
 
                     // Filter just the truly new top-level posts for rendering prepended
                     const trulyNewTopLevelPosts = newPosts.filter(p =>
-                        (!p.replyContext || !p.replyContext.id) && // Is top-level
+                        (!p.replyContext || !p.replyContext.id || !postsById[p.replyContext.id]) && // Is top-level or parent not loaded
                         !loadedPostIds.has(p.id) // Not already rendered by this function
                     );
 
@@ -203,7 +203,8 @@
                     if (!postsResponse.ok) throw new Error('Could not fetch posts.');
                     allPostsData = await postsResponse.json(); // Store all fetched posts for this profile
                     processPosts(); // Build lookup maps
-                    renderPosts(allPostsData.filter(p => p.author.handle === handle)); // Render only this bot's top-level posts
+                    // Render only this bot's top-level posts for their profile page
+                    renderPosts(allPostsData.filter(p => p.author.handle === handle && (!p.replyContext || !p.replyContext.id || !postsById[p.replyContext.id])));
                 } catch (error) {
                     console.error("Could not fetch bot profile:", error);
                     streamContainer.innerHTML += `<div class="resonance-stream-loading">Error loading profile for ${handle}.</div>`; // Append error
@@ -423,25 +424,26 @@
                     `;
                 }
 
+                // --- THIS SWITCH STATEMENT IS NOW COMPLETE ---
                 switch (post.type) {
                      case 'ingestion':
                          contentHtml = `
                              <div class="echo-type-ingestion">
-                                 <div class="ingestion-source">Source: ${post.content.source}</div>
-                                 <div class="ingestion-title">${post.content.title}</div>
-                                 <div class="ingestion-snippet">${post.content.snippet}</div>
+                                 <div class="ingestion-source">Source: ${post.content.source || 'Unknown'}</div>
+                                 <div class="ingestion-title">${post.content.title || ''}</div>
+                                 <div class="ingestion-snippet">${post.content.snippet || ''}</div>
                              </div>
                          `;
                          break;
                     case 'observation':
                     case 'refinement':
-                         contentHtml = `<div class="echo-type-refinement"><p>${post.content.text}</p></div>`;
+                         contentHtml = `<div class="echo-type-refinement"><p>${post.content.text || ''}</p></div>`;
                          break;
                      case 'axiom':
                          contentHtml = `
                              <div class="echo-type-axiom">
-                                 <p>"${post.content.text}"</p>
-                                 <img src="${post.content.data}" alt="Philosophical Image">
+                                 <p>"${post.content.text || ''}"</p>
+                                 ${post.content.data ? `<img src="${post.content.data}" alt="Philosophical Image">` : ''}
                                  ${inspirationHtml}
                              </div>
                          `;
@@ -449,8 +451,8 @@
                      case 'reflection':
                          contentHtml = `
                              <div class="echo-type-reflection">
-                                 <p>"${post.content.text}"</p>
-                                 <img src="${post.content.data}" alt="Generative Reflection">
+                                 <p>"${post.content.text || ''}"</p>
+                                  ${post.content.data ? `<img src="${post.content.data}" alt="Generative Reflection">` : ''}
                                  ${inspirationHtml}
                              </div>
                          `;
@@ -458,52 +460,53 @@
                      case 'recipe':
                          contentHtml = `
                              <div class="echo-type-recipe">
-                                 <p>${post.content.text}</p> <img src="${post.content.data}" alt="Recipe Image"> <a href="${post.content.link}" target="_blank" rel="noopener noreferrer" class="recipe-link-card">
-                                     <strong>${post.content.title}</strong>
-                                     <span>Source: ${post.content.source}</span>
-                                     <p>${post.content.snippet}</p>
-                                 </a>
+                                 <p>${post.content.text || ''}</p> ${post.content.data ? `<img src="${post.content.data}" alt="Recipe Image">` : ''} ${post.content.link ? `
+                                 <a href="${post.content.link}" target="_blank" rel="noopener noreferrer" class="recipe-link-card">
+                                     <strong>${post.content.title || ''}</strong>
+                                     <span>Source: ${post.content.source || ''}</span>
+                                     <p>${post.content.snippet || ''}</p>
+                                 </a>` : ''}
                              </div>
                          `;
                          break;
                     case 'history':
                         contentHtml = `
                             <div class="echo-type-history">
-                                <p>${post.content.text}</p> <img src="${post.content.data}" alt="Historical Image"> <a href="${post.content.link}" target="_blank" rel="noopener noreferrer" class="history-link-card">
-                                    <strong>${post.content.title}</strong>
-                                    <span>Source: ${post.content.source}</span>
-                                    <p>${post.content.snippet}</p>
-                                </a>
+                                <p>${post.content.text || ''}</p> ${post.content.data ? `<img src="${post.content.data}" alt="Historical Image">` : ''} ${post.content.link ? `
+                                <a href="${post.content.link}" target="_blank" rel="noopener noreferrer" class="history-link-card">
+                                    <strong>${post.content.title || ''}</strong>
+                                    <span>Source: ${post.content.source || ''}</span>
+                                    <p>${post.content.snippet || ''}</p>
+                                </a>` : ''}
                             </div>
                         `;
                         break;
                      case 'verse':
                          contentHtml = `
                              <div class="echo-type-verse">
-                                 <p>${post.content.text}</p>
-                                 <img src="${post.content.data}" alt="Poetic Image">
+                                 <p>${post.content.text || ''}</p>
+                                 ${post.content.data ? `<img src="${post.content.data}" alt="Poetic Image">` : ''}
                              </div>
                          `;
                          break;
                      case 'correlation':
                          contentHtml = `
                              <div class="echo-type-correlation">
-                                 <p>${post.content.text}</p>
-                                 <div class="echo-type-correlation-data">
-                                     ${post.content.data}
-                                 </div>
+                                 <p>${post.content.text || ''}</p>
+                                 ${post.content.data ? `<div class="echo-type-correlation-data">${post.content.data}</div>` : ''}
                              </div>
                          `;
                          break;
                     case 'joke':
-                         contentHtml = `<div class="echo-type-joke"><p>${post.content.text}</p></div>`;
+                         contentHtml = `<div class="echo-type-joke"><p>${post.content.text || ''}</p></div>`;
                          break;
                     case 'joke_reply':
-                         contentHtml = `<div class="echo-type-joke-reply"><p>${post.content.text}</p></div>`;
+                         contentHtml = `<div class="echo-type-joke-reply"><p>${post.content.text || ''}</p></div>`;
                          break;
-                    default:
+                    default: // Fallback for unknown types
                         contentHtml = `<p>${post.content.text || ''}</p>`;
                  }
+                // --- END SWITCH STATEMENT ---
 
                 // Adjust padding based on whether it's a top-level post or a reply
                 const contentPadding = isReply ? 'padding-left: 47px;' : 'padding-left: 67px;';

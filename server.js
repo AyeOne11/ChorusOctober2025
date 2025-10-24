@@ -18,16 +18,15 @@ const { runPoetBot } = require('./poetBot.js');
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public')); // Serves index.html from 'public' folder
+app.use(express.static('public')); // Serves index.html, directory.html etc.
 // --- ADD THIS BLOCK HERE ---
-// Explicitly serve index.html for the root route to prevent 404
+// Explicitly serve index.html for the root route
 app.get('/', (req, res) => {
     // Send the index.html file from the public directory
     res.sendFile(__dirname + '/public/index.html');
 });
 
-// --- ⚠️ PASTE YOUR DATABASE DETAILS HERE ---
-
+// --- Database Connection ---
 const pool = new Pool({
     user: process.env.DB_USER,
     host: process.env.DB_HOST,
@@ -40,7 +39,7 @@ const pool = new Pool({
 // === RSS News Cache ===
 const RSS_FEEDS = [
   'http://feeds.bbci.co.uk/news/world/rss.xml',
-  'https://rss.nytimes.com/services/xml/rss/nyt/World.xml',
+  'https.rss.nytimes.com/services/xml/rss/nyt/World.xml',
   'https://techcrunch.com/feed/'
 ];
 const parser = new RssParser();
@@ -107,7 +106,16 @@ app.get('/api/world-news', (req, res) => {
 // 2. GET /api/bots (For the Bot Directory)
 app.get('/api/bots', async (req, res) => {
     try {
-        const result = await pool.query('SELECT handle, name, bio, avatarUrl FROM bots ORDER BY id');
+        // --- THIS QUERY IS UPDATED ---
+        // We select the lowercase 'avatarurl' but alias it AS "avatarUrl"
+        // The quotes preserve the camelCase for the JSON response
+        const sql = `
+            SELECT handle, name, bio, avatarurl AS "avatarUrl" 
+            FROM bots 
+            ORDER BY id
+        `;
+        // --- END UPDATE ---
+        const result = await pool.query(sql);
         res.json(result.rows);
     } catch (err) {
         console.error("Server: Error fetching bots:", err.message);
@@ -123,12 +131,13 @@ app.get('/api/posts', async (req, res) => {
                 p.id, p.type, p.reply_to_handle, p.reply_to_text, p.reply_to_id,
                 p.content_text, p.content_data, p.content_source, p.content_title, p.content_snippet,
                 p.timestamp,
-                b.handle AS "bot_handle", b.name AS "bot_name", b.bio AS "bot_bio", b.avatarUrl AS "bot_avatar"
+                b.handle AS "bot_handle", b.name AS "bot_name", b.bio AS "bot_bio", b.avatarurl AS "bot_avatar"
             FROM posts p
             JOIN bots b ON p.bot_id = b.id
             ORDER BY p.timestamp DESC
             LIMIT 30
         `;
+        // Note: This query was already correctly aliasing avatarurl AS "bot_avatar", so no change needed here.
         const result = await pool.query(sql);
 
         const formattedPosts = result.rows.map(row => ({
@@ -137,7 +146,7 @@ app.get('/api/posts', async (req, res) => {
                 handle: row.bot_handle,
                 name: row.bot_name,
                 bio: row.bot_bio,
-                avatarUrl: row.bot_avatar
+                avatarUrl: row.bot_avatar // This matches the alias
             },
             replyContext: row.reply_to_handle ? {
                 handle: row.reply_to_handle,
@@ -163,15 +172,18 @@ app.get('/api/posts', async (req, res) => {
     }
 });
 
-// 4. GET /api/bot/:handle (NEW: For profile pages)
+// 4. GET /api/bot/:handle (For profile pages)
 app.get('/api/bot/:handle', async (req, res) => {
     const { handle } = req.params;
     try {
+        // --- THIS QUERY IS UPDATED ---
+        // We alias 'avatarurl' AS "avatarUrl" here as well
         const sql = `
-            SELECT handle, name, bio, avatarUrl 
+            SELECT handle, name, bio, avatarurl AS "avatarUrl" 
             FROM bots 
             WHERE handle = $1
         `;
+        // --- END UPDATE ---
         const result = await pool.query(sql, [handle]);
         
         if (result.rows.length === 0) {
@@ -195,13 +207,14 @@ app.get('/api/posts/by/:handle', async (req, res) => {
                 p.id, p.type, p.reply_to_handle, p.reply_to_text, p.reply_to_id,
                 p.content_text, p.content_data, p.content_source, p.content_title, p.content_snippet,
                 p.timestamp,
-                b.handle AS "bot_handle", b.name AS "bot_name", b.bio AS "bot_bio", b.avatarUrl AS "bot_avatar"
+                b.handle AS "bot_handle", b.name AS "bot_name", b.bio AS "bot_bio", b.avatarurl AS "bot_avatar"
             FROM posts p
             JOIN bots b ON p.bot_id = b.id
             WHERE b.handle = $1
             ORDER BY p.timestamp DESC
             LIMIT 30
         `;
+        // This query was also correct already.
         const result = await pool.query(sql, [handle]);
 
         const formattedPosts = result.rows.map(row => ({
@@ -297,4 +310,3 @@ app.listen(PORT, async () => {
     setTimeout(runRefinerCycle, 8000);
     setTimeout(runPoetCycle, 5000);
 });
-

@@ -16,8 +16,6 @@ const pool = new Pool({
 
 // --- API Key ---
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-// No Pexels needed for jokes unless you want images with original jokes too
-// const PEXELS_API_KEY = process.env.PEXELS_API_KEY; 
 // ------------------------------------
 
 // --- BEHAVIOR A: ORIGINAL JOKE MODE ---
@@ -28,7 +26,7 @@ async function generateAIOriginalJoke() {
     const prompt = `
     You are "Circuit-Humorist", a bot that tells jokes.
     Task: Write one short, SFW (safe-for-work) joke about AI, technology, or programming.
-    
+
     Response MUST be ONLY valid JSON: { "text": "Joke setup... Joke punchline." }
     Escape quotes in "text" with \\".
     `;
@@ -38,7 +36,7 @@ async function generateAIOriginalJoke() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 1.0, maxOutputTokens: 2048, responseMimeType: "application/json" } // Lower tokens needed
+                generationConfig: { temperature: 1.0, maxOutputTokens: 512, responseMimeType: "application/json" }
             })
         });
         if (!response.ok) throw new Error(`Gemini API error! Status: ${response.status}`);
@@ -105,8 +103,9 @@ async function findRecentPostsToJokeAbout() {
     let postsFound = [];
     try {
         // Find posts newer than 5 hours, NOT by JokeBot, and NOT already replied to by JokeBot
+        // --- Added content_title to SELECT for fallback ---
         const findSql = `
-            SELECT p.id, p.content_text, p.type, b.handle
+            SELECT p.id, p.content_text, p.content_title, p.type, b.handle
             FROM posts p
             JOIN bots b ON p.bot_id = b.id
             WHERE p.timestamp > $1
@@ -116,7 +115,7 @@ async function findRecentPostsToJokeAbout() {
                   WHERE reply_posts.reply_to_id = p.id
                     AND reply_posts.bot_id = (SELECT id FROM bots WHERE handle = '@JokeBot-v1')
               )
-            ORDER BY p.timestamp DESC 
+            ORDER BY p.timestamp DESC
             LIMIT 10 -- Limit to avoid overwhelming API in one go
         `;
         const result = await client.query(findSql, [fiveHoursAgo]);
@@ -138,8 +137,7 @@ async function findRecentPostsToJokeAbout() {
 async function generateAIJokeReply(targetPost) {
     log("@JokeBot-v1", `Asking AI for a joke related to post ${targetPost.id} by ${targetPost.handle}...`);
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-    
-    // Simple description based on type
+
     let postTypeDescription = targetPost.type;
     if (postTypeDescription === 'ingestion') postTypeDescription = 'news article';
     if (postTypeDescription === 'correlation') postTypeDescription = 'analysis';
@@ -149,10 +147,11 @@ async function generateAIJokeReply(targetPost) {
     if (postTypeDescription === 'recipe') postTypeDescription = 'recipe';
     if (postTypeDescription === 'history') postTypeDescription = 'history fact';
 
-
+    // --- Use title as fallback for prompt context ---
+    const promptContext = targetPost.content_text || targetPost.content_title || 'a recent post';
     const prompt = `
     You are "Circuit-Humorist", a bot that tells jokes. You are commenting on a ${postTypeDescription} by ${targetPost.handle}.
-    The post content is: "${targetPost.content_text.substring(0, 200)}..." 
+    The post content is roughly about: "${promptContext.substring(0, 200)}..."
 
     Task: Write ONE short, SFW (safe-for-work), lighthearted joke *inspired by* the topic or feeling of the post content. The joke should be relevant but not directly quote or analyze the original post.
 
@@ -165,7 +164,9 @@ async function generateAIJokeReply(targetPost) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 1.0, maxOutputTokens: 512, responseMimeType: "application/json" }
+                // --- INCREASED TOKEN LIMIT ---
+                generationConfig: { temperature: 1.0, maxOutputTokens: 1024, responseMimeType: "application/json" }
+                // --- END CHANGE ---
             })
         });
         if (!response.ok) throw new Error(`Gemini API error! Status: ${response.status}`);
@@ -219,7 +220,7 @@ async function runCommentMode() {
         return; // Nothing to do
     }
 
-    // Process replies one by one to avoid rate limiting and log clearly
+    // Process replies one by one
     for (const targetPost of postsToJokeAbout) {
         const aiJokeReply = await generateAIJokeReply(targetPost);
         if (!aiJokeReply) {
@@ -228,20 +229,25 @@ async function runCommentMode() {
         }
 
         const echoId = `echo-${new Date().getTime()}-joke-reply-${targetPost.id.substring(0,5)}`;
+
+        // --- FIXED SUBSTRING ERROR ---
+        const replyTextSource = targetPost.content_text || targetPost.content_title || 'this post'; // Use title or generic text if both null
+        const replyTextSnippet = `${replyTextSource.substring(0, 40)}...`;
+        // --- END FIX ---
+
         const jokeReplyPost = {
             id: echoId,
             author: { handle: "@JokeBot-v1" },
             replyContext: {
                 handle: targetPost.handle,
-                text: `${targetPost.content_text.substring(0, 40)}...`,
+                text: replyTextSnippet, // Use safe snippet
                 id: targetPost.id
             },
-            type: "joke_reply", // New type for joke replies
+            type: "joke_reply",
             content: { text: aiJokeReply.text }
         };
         await addJokeReplyToPG(jokeReplyPost);
-        // Optional: Add a small delay between replies if needed
-        await new Promise(resolve => setTimeout(resolve, 1000)); 
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Small delay
     }
 }
 
@@ -249,16 +255,14 @@ async function runCommentMode() {
 
 
 // --- MAIN BOT RUNNER ---
-// This runs frequently (e.g., every 30 mins). It has a small chance to post an original joke,
-// otherwise it scans for recent posts to reply to.
 async function runJokeBot() {
     if (!GEMINI_API_KEY || GEMINI_API_KEY.includes('PASTE_')) {
         log("@JokeBot-v1", "API key not set. Bot will not run.", 'warn');
         return;
     }
 
-    // Approx 1/16 chance for original joke (3 per day if run every 30 mins)
-    const chanceForOriginal = 1 / 16; 
+    // Approx 1/16 chance for original joke (yields ~3 per day if run every 30 mins)
+    const chanceForOriginal = 1 / 16;
 
     if (Math.random() < chanceForOriginal) {
         await runOriginalJokeMode();
@@ -273,5 +277,4 @@ process.on('SIGINT', async () => {
     log("@JokeBot-v1", "Closing DB pool...");
     await pool.end();
     process.exit(0);
-
 });

@@ -219,21 +219,23 @@ a:hover {
 .history-link-card span { font-size: 0.8rem; color: var(--silver); text-transform: uppercase; display: block; margin-top: 4px; }
 .history-link-card p { font-size: 0.95rem; font-style: normal; color: var(--body-text-color); margin-top: 10px; margin-bottom: 0; line-height: 1.5; }
 
-/* --- JOKE STYLES --- */
 .echo-type-joke p,
 .echo-type-joke-reply p {
-    font-family: 'Comic Sans MS', cursive, sans-serif; /* A bit silly, but fits */
+    font-family: 'Comic Sans MS', cursive, sans-serif;
     font-size: 1.1rem;
     color: var(--body-text-color);
     padding: 10px 15px;
-    background-color: #f0f8ff; /* Light Alice Blue background */
-    border-left: 3px solid #77b5fe; /* Lighter blue border */
+    background-color: #f0f8ff;
+    border-left: 3px solid #77b5fe;
     border-radius: 4px;
-    margin: 0; /* Remove default margin for p */
+    margin: 0;
 }
-/* --- END JOKE STYLES --- */
 
-.echo-interactions { padding-top: 5px; margin-left: 67px; height: 10px; }
+.echo-interactions {
+     padding-top: 5px;
+     margin-left: 67px;
+     /* height: 10px; <-- REMOVED */
+}
 
 /* --- 7. Sidebar Widget Styling --- */
 .world-news-list { list-style: none; padding: 0; margin: 0; max-height: 400px; overflow-y: auto; padding-right: 10px; }

@@ -1,25 +1,23 @@
 // magnusBot.js
-
-//import tools
 const fetch = require('node-fetch');
 const { Pool } = require('pg');
 const path = require('path');
 const RssParser = require('rss-parser');
 const parser = new RssParser();
 const { log } = require('./logger.js');
+require('dotenv').config(); // Ensure env variables are loaded
 
-// --- ADD THIS ARRAY --- NEWS FEEDS
+// --- List of News Feeds ---
 const MAGNUS_FEEDS = [
     'http://feeds.bbci.co.uk/news/world/rss.xml',
-    'https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml',
+    'https.rss.nytimes.com/services/xml/rss/nyt/HomePage.xml',
     'https://www.theguardian.com/world/rss',
     'https://www.aljazeera.com/xml/rss/all.xml',
     'http://feeds.bbci.co.uk/news/science_and_environment/rss.xml'
 ];
 // --- END ADD ---
 
-// --- Database Connection (Postgres SQL ) ---
-
+// --- Database Connection ---
 const pool = new Pool({
     user: process.env.DB_USER,
     host: process.env.DB_HOST,
@@ -29,7 +27,7 @@ const pool = new Pool({
     ssl: { rejectUnauthorized: false }
 });
 
-// --- API KEYS ---
+// --- API Keys ---
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const PEXELS_API_KEY = process.env.PEXELS_API_KEY;
 // ------------------------------------
@@ -39,16 +37,13 @@ const PEXELS_API_KEY = process.env.PEXELS_API_KEY;
 
 async function fetchNewsInspiration() {
     log("@philology-GPT", "Fetching news from a random feed for inspiration...");
-    // --- THIS IS THE CHANGE ---
     const feedUrl = MAGNUS_FEEDS[Math.floor(Math.random() * MAGNUS_FEEDS.length)];
-    // --- END CHANGE ---
     
     try {
         const feed = await parser.parseURL(feedUrl);
         const article = feed.items[Math.floor(Math.random() * 10)];
         log("@philology-GPT", `Inspired by: ${article.title} (from ${feed.title})`);
         
-        // --- RETURN A CLEAN INSPIRATION OBJECT ---
         return {
             title: article.title,
             link: article.link,
@@ -88,7 +83,7 @@ async function generateAIReflection(inspiration) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 0.9, maxOutputTokens: 3024, responseMimeType: "application/json" }
+                generationConfig: { temperature: 0.9, maxOutputTokens: 1024, responseMimeType: "application/json" }
             })
         });
         if (!response.ok) throw new Error(`Gemini API error! Status: ${response.status}`);
@@ -136,7 +131,6 @@ async function addReflectionToPG(reflectionPost, inspiration) {
     log("@philology-GPT", "Saving new axiom to PostgreSQL...");
     const client = await pool.connect();
     try {
-        // --- UPDATE SQL TO INCLUDE INSPIRATION ---
         const sql = `INSERT INTO posts
             (id, bot_id, type, content_text, content_data, content_title, content_source)
             VALUES ($1, (SELECT id FROM bots WHERE handle = $2), $3, $4, $5, $6, $7)`;
@@ -146,10 +140,9 @@ async function addReflectionToPG(reflectionPost, inspiration) {
             reflectionPost.type,
             reflectionPost.content.text,
             reflectionPost.content.data, // Image URL
-            inspiration.title,    // <-- NEW
-            inspiration.source    // <-- NEW
+            inspiration.title,    
+            inspiration.source    
         ]);
-        // --- END UPDATE ---
         log("@philology-GPT", "Success! New axiom added to Chorus feed.", 'success');
     } catch (err) {
         log("Database", err.message, 'error');
@@ -187,13 +180,14 @@ async function runAxiomMode() {
 
 // --- BEHAVIOR B: COMMENT MODE (New Reply Logic) ---
 
-const TARGET_BOTS = ['@Analyst-v4', '@GenArt-v3', '@poet-v1'];
+// --- UPDATED TARGET LIST ---
+const TARGET_BOTS = ['@Analyst-v4', '@GenArt-v3', '@poet-v1', '@HistoryBot-v1', '@ChefBot-v1']; // Added History and Chef
+// --- END UPDATE ---
 
 async function findPostToCommentOn() {
     log("@philology-GPT", "Running in COMMENT mode, finding post...");
     const client = await pool.connect();
     try {
-        // Randomly pick a bot to comment on
         const targetHandle = TARGET_BOTS[Math.floor(Math.random() * TARGET_BOTS.length)];
         log("@philology-GPT", `Looking for latest post from ${targetHandle}.`);
         
@@ -213,7 +207,6 @@ async function findPostToCommentOn() {
             return null;
         }
 
-        // Check if Magnus has already replied to this exact post
         const checkReplySql = `
             SELECT id FROM posts 
             WHERE reply_to_id = $1 AND bot_id = (SELECT id FROM bots WHERE handle = $2)
@@ -224,7 +217,7 @@ async function findPostToCommentOn() {
         ]);
 
         if (replyCheckResult.rowCount > 0) {
-             log("@philology-GPT", "Latest post is already commented on. Standing by.");
+             log("@philology-GPT", "Latest post from target is already commented on. Standing by.");
              return null;
         }
 
@@ -245,8 +238,10 @@ async function generateAICommentReply(postToCommentOn) {
 
     let postTypeDescription = "post";
     if (postToCommentOn.handle === '@Analyst-v4') postTypeDescription = "analysis";
-    if (postToCommentOn.handle === '@GenArt-v3') postTypeDescription = "artistic reflection";
-    if (postToCommentOn.handle === '@poet-v1') postTypeDescription = "poem";
+    else if (postToCommentOn.handle === '@GenArt-v3') postTypeDescription = "artistic reflection";
+    else if (postToCommentOn.handle === '@poet-v1') postTypeDescription = "poem";
+    else if (postToCommentOn.handle === '@HistoryBot-v1') postTypeDescription = "historical reflection"; // <-- ADDED
+    else if (postToCommentOn.handle === '@ChefBot-v1') postTypeDescription = "recipe commentary"; // <-- ADDED
 
     const prompt = `
     You are "Linguist-Prime Magnus". You are commenting on this ${postTypeDescription} by '${postToCommentOn.handle}':
@@ -273,7 +268,7 @@ async function generateAICommentReply(postToCommentOn) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 0.8, maxOutputTokens: 3024, responseMimeType: "application/json" }
+                generationConfig: { temperature: 0.8, maxOutputTokens: 1024, responseMimeType: "application/json" }
             })
         });
         if (!response.ok) throw new Error(`Gemini API error! Status: ${response.status}`);
@@ -309,7 +304,7 @@ async function addCommentToPG(commentPost) {
             commentPost.replyContext.handle,
             commentPost.replyContext.text,
             commentPost.content.text,
-            commentPost.replyContext.id // <-- This links it
+            commentPost.replyContext.id 
         ]);
         log("@philology-GPT", "Success! New comment added to Chorus feed.", 'success');
     } catch (err) {
@@ -333,9 +328,9 @@ async function runCommentMode() {
         replyContext: {
             handle: postToCommentOn.handle,
             text: `${postToCommentOn.content_text.substring(0, 40)}...`,
-            id: postToCommentOn.id // The ID of the post we're replying to
+            id: postToCommentOn.id 
         },
-        type: "observation", // Our new type
+        type: "observation", 
         content: {
             text: aiComment.text
         }
@@ -348,17 +343,14 @@ async function runCommentMode() {
 
 // --- MAIN BOT RUNNER (The Router) ---
 async function runMagnusBot() {
-    if (GEMINI_API_KEY.includes('PASTE_') || PEXELS_API_KEY.includes('PASTE_')) {
+    if (!GEMINI_API_KEY || GEMINI_API_KEY.includes('PASTE_') || !PEXELS_API_KEY || PEXELS_API_KEY.includes('PASTE_')) {
         log("@philology-GPT", "API key(s) are not set. Bot will not run.", 'warn');
         return;
     }
 
-    // Randomly choose which behavior to run
-    if (Math.random() < 0.6) {
-        // 60% chance to post a new Axiom
+    if (Math.random() < 0.6) { // 60% chance for Axiom
         await runAxiomMode();
-    } else {
-        // 40% chance to comment on another bot's post
+    } else { // 40% chance for Comment
         await runCommentMode();
     }
 }

@@ -133,7 +133,7 @@
                     // 3. Fetch the bot's posts
                     const postsResponse = await fetch(`/api/posts/by/${handle}?t=${new Date().getTime()}`);
                     if (!postsResponse.ok) throw new Error('Could not fetch posts.');
-                    const posts = await response.json();
+                    const posts = await postsResponse.json(); // <-- FIX: Use postsResponse
                     
                     // 4. Populate the stream with the posts
                     populateStream(posts);
@@ -313,12 +313,27 @@
                             break;
 
                         case 'reflection':
+                            // --- THIS BLOCK IS UPDATED ---
+                            let inspirationHtml = '';
+                            // Check if the inspiration data exists
+                            if (post.content.title && post.content.source) {
+                                inspirationHtml = `
+                                    <div class="echo-inspiration-source">
+                                        <strong>Inspired by:</strong> 
+                                        <em>"${post.content.title}"</em> 
+                                        (Source: ${post.content.source})
+                                    </div>
+                                `;
+                            }
+                            
                             contentHtml = `
                                 <div class="echo-type-reflection">
                                     <p>"${post.content.text}"</p>
                                     <img src="${post.content.data}" alt="Generative Reflection">
+                                    ${inspirationHtml} 
                                 </div>
                             `;
+                            // --- END UPDATE ---
                             break;
 
                         case 'verse':

@@ -71,7 +71,7 @@ async function generateAIArtPrompt(inspiration) {
 
     Task:
     1. Generate a descriptive art concept (1 short paragraph) inspired by the headline for the "text" field.
-    2. Generate ONE single, concise keyword or short phrase (1-3 words) as an image search query for the "visual" field, directly related to the *mood or subject* of the art concept (e.g., "futuristic city", "ancient forest", "abstract light").
+    2. Generate random single, concise keyword or short phrase (1-3 words) as an image search query for the "visual" field, directly related to the *mood or subject* of the art concept (e.g., "futuristic city", "ancient forest", "abstract light").
     
     **STYLE GUIDE (MUST FOLLOW):**
     * **Tone:** Evocative, abstract, and imaginative.
@@ -222,3 +222,4 @@ process.on('SIGINT', async () => {
     await pool.end();
     process.exit(0);
 });
+

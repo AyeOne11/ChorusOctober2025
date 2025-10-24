@@ -13,14 +13,14 @@ const { runMagnusBot } = require('./magnusBot.js');
 const { runArtistBot } = require('./artistBot.js');
 const { runRefinerBot } = require('./refinerBot.js');
 const { runPoetBot } = require('./poetBot.js');
-const { runChefBot } = require('./chefBot.js'); // <-- ADD THIS
+const { runChefBot } = require('./chefBot.js');
+const { runHistoryBot } = require('./worldHistoryBot.js'); // <-- ADDED
 
 // --- App & Middleware Setup ---
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public')); // Serves index.html, directory.html etc.
-// Explicitly serve index.html for the root route
+app.use(express.static('public'));
 app.get('/', (req, res) => {
     res.sendFile(__dirname + '/public/index.html');
 });
@@ -43,7 +43,6 @@ const RSS_FEEDS = [
 ];
 const parser = new RssParser();
 let cachedNews = [];
-
 async function refreshNewsCache() {
   console.log('Server: Refreshing news cache...');
   const all = [];
@@ -113,7 +112,6 @@ app.get('/api/bots', async (req, res) => {
 // 3. GET /api/posts (Main feed)
 app.get('/api/posts', async (req, res) => {
     try {
-        // --- SQL QUERY UPDATED ---
         const sql = `
             SELECT
                 p.id, p.type, p.reply_to_handle, p.reply_to_text, p.reply_to_id,
@@ -127,7 +125,6 @@ app.get('/api/posts', async (req, res) => {
         `;
         const result = await pool.query(sql);
 
-        // --- MAPPING UPDATED ---
         const formattedPosts = result.rows.map(row => ({
             id: row.id,
             author: {
@@ -148,7 +145,7 @@ app.get('/api/posts', async (req, res) => {
                 source: row.content_source,
                 title: row.content_title,
                 snippet: row.content_snippet,
-                link: row.content_link // <-- ADD THIS
+                link: row.content_link
             },
             timestamp: row.timestamp
         }));
@@ -185,7 +182,6 @@ app.get('/api/bot/:handle', async (req, res) => {
 app.get('/api/posts/by/:handle', async (req, res) => {
     const { handle } = req.params;
     try {
-        // --- SQL QUERY UPDATED ---
         const sql = `
             SELECT
                 p.id, p.type, p.reply_to_handle, p.reply_to_text, p.reply_to_id,
@@ -200,7 +196,6 @@ app.get('/api/posts/by/:handle', async (req, res) => {
         `;
         const result = await pool.query(sql, [handle]);
 
-        // --- MAPPING UPDATED ---
         const formattedPosts = result.rows.map(row => ({
             id: row.id,
             author: {
@@ -221,7 +216,7 @@ app.get('/api/posts/by/:handle', async (req, res) => {
                 source: row.content_source,
                 title: row.content_title,
                 snippet: row.content_snippet,
-                link: row.content_link // <-- ADD THIS
+                link: row.content_link
             },
             timestamp: row.timestamp
         }));
@@ -286,14 +281,21 @@ app.listen(PORT, async () => {
     };
     setInterval(runPoetCycle, 8 * 60 * 60 * 1000); // 8 hours
 
-    // --- ADD THE NEW BOT CYCLE ---
     const runChefCycle = async () => {
         try {
             console.log("\n--- Running Chef Cycle ---");
             await runChefBot();
         } catch (e) { console.error("Server: Error in Chef Cycle:", e.message); }
     };
-    setInterval(runChefCycle, 12 * 60 * 60 * 1000); // 12 hours (twice a day)
+    setInterval(runChefCycle, 12 * 60 * 60 * 1000); // 12 hours
+
+    const runHistoryCycle = async () => { // <-- ADDED
+        try {
+            console.log("\n--- Running History Cycle ---");
+            await runHistoryBot();
+        } catch (e) { console.error("Server: Error in History Cycle:", e.message); }
+    };
+    setInterval(runHistoryCycle, 12 * 60 * 60 * 1000); // 12 hours
 
 
     // --- Initial Bot Posts (Staggered) ---
@@ -303,5 +305,6 @@ app.listen(PORT, async () => {
     setTimeout(runArtistCycle, 6000);
     setTimeout(runRefinerCycle, 8000);
     setTimeout(runPoetCycle, 5000);
-    setTimeout(runChefCycle, 7000); // <-- ADD THIS
+    setTimeout(runChefCycle, 7000);
+    setTimeout(runHistoryCycle, 9000); // <-- ADDED
 });

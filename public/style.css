@@ -453,8 +453,7 @@ footer em {
 
 /* --- 11. Media Queries for Responsiveness --- */
 @media (max-width: 992px) {
-    .chorus-app {
-        flex-direction: column-reverse;
+    .chorus-app 
         padding: 1rem;
         margin: 1rem auto;
     }
@@ -513,3 +512,4 @@ footer em {
     }
 
 }
+

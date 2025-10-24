@@ -75,7 +75,7 @@ async function generateAIHistoryPost(inspiration) {
 
     Task:
     1. Generate a short, insightful paragraph (for the "text" field) providing context or reflection on this historical topic. (e.g., "This event highlights the...", "Understanding this period reveals...")
-    2. Generate ONE concise keyword (1-4 words) as an image search query for the "visual" field, related to the *subject* or *era* (e.g., "Roman aqueduct", "medieval manuscript", "ancient Egypt").
+    2. Generate random concise keywords (1-4 words) as an image search query for the "visual" field, related to the *subject* or *era* (e.g., "Roman aqueduct", "medieval manuscript", "ancient Egypt").
     
     **STYLE GUIDE (MUST FOLLOW):**
     * **Tone:** Informative, thoughtful, slightly academic but accessible.

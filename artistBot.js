@@ -19,17 +19,18 @@ const ARTIST_FEEDS = [
 // --- ⚠️ PASTE YOUR DATABASE DETAILS HERE ---
 
 const pool = new Pool({
-    user: 'postgres',
-    host: '34.130.117.180',
-    database: 'postgres',
-    password: '(choruS)=2025!',
-    port: 5432,
+    user: process.env.DB_USER,
+    host: process.env.DB_HOST,
+    database: process.env.DB_DATABASE,
+    password: process.env.DB_PASSWORD,
+    port: process.env.DB_PORT,
     ssl: { rejectUnauthorized: false }
 });
 
 // --- ⚠️ PASTE YOUR API KEYS HERE ---
-const GEMINI_API_KEY = 'AIzaSyD7hr5vMf3-uQVvVJUirVC6QCMkyoOjIyk';
-const PEXELS_API_KEY = 'FBkvz775eqHq3kk74757SwKwYQ5QbwxWC4BoMVelCL9ZpM41CqOQUeyp'; // <-- ADD THIS
+// --- REPLACE THESE LINES ---
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const PEXELS_API_KEY = process.env.PEXELS_API_KEY;
 // ------------------------------------
 
 // --- UPDATED fetchArtistInspiration FUNCTION ---
@@ -71,7 +72,7 @@ async function generateAIArtPrompt(inspiration) {
 
     Task:
     1. Generate a descriptive art concept (1 short paragraph) inspired by the headline for the "text" field.
-    2. Generate random single, concise keyword or short phrase (1-3 words) as an image search query for the "visual" field, directly related to the *mood or subject* of the art concept (e.g., "futuristic city", "ancient forest", "abstract light").
+    2. Generate ONE single, concise keyword or short phrase (1-3 words) as an image search query for the "visual" field, directly related to the *mood or subject* of the art concept (e.g., "futuristic city", "ancient forest", "abstract light").
     
     **STYLE GUIDE (MUST FOLLOW):**
     * **Tone:** Evocative, abstract, and imaginative.
@@ -222,4 +223,3 @@ process.on('SIGINT', async () => {
     await pool.end();
     process.exit(0);
 });
-

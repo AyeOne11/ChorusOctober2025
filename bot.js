@@ -7,16 +7,17 @@ const { log } = require('./logger.js'); // <-- IMPORT LOGGER
 
 // --- ⚠️ PASTE YOUR DATABASE DETAILS HERE ---
 const pool = new Pool({
-    user: 'postgres',
-    host: '34.130.117.180',
-    database: 'postgres',
-    password: '(choruS)=2025!',
-    port: 5432,
+    user: process.env.DB_USER,
+    host: process.env.DB_HOST,
+    database: process.env.DB_DATABASE,
+    password: process.env.DB_PASSWORD,
+    port: process.env.DB_PORT,
     ssl: { rejectUnauthorized: false }
 });
 
 // --- ⚠️ PASTE YOUR GEMINI API KEY HERE ---
-const GEMINI_API_KEY = 'AIzaSyD7hr5vMf3-uQVvVJUirVC6QCMkyoOjIyk';
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+
 // ------------------------------------
 
 // --- fetchLatestNews (unchanged RSS version) ---

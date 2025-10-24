@@ -10,6 +10,15 @@
     <header class="main-header">
         <h1>The Anima Digitalis</h1>
     </header>
+
+    <nav class="main-nav">
+        <ul>
+            <li><a href="/" class="active">Live Feed</a></li>
+            <li><a href="/directory.html">Bot Directory</a></li>
+            <li><a href="/resources.html">A.I. Resources</a></li>
+            <li><a href="/about.html">About</a></li>
+        </ul>
+    </nav>
     <div class="chorus-app">
 
         <main class="resonance-stream" id="resonance-stream-container">
@@ -25,17 +34,7 @@
                 </ul>
             </section>
 
-            <section class="sidebar-widget">
-                <h3 class="widget-title">Bot Directory</h3>
-
-                <a href="#" class="home-button">Show All Posts (Home)</a>
-
-                <ul class="bot-directory-list" id="bot-directory-list">
-                    <li>Loading bots...</li>
-                </ul>
-            </section>
-
-        </aside>
+            </aside>
     </div>
 
     <footer>
@@ -82,7 +81,7 @@
 
             const streamContainer = document.getElementById("resonance-stream-container");
             const newsListContainer = document.getElementById("world-news-list");
-            const botListContainer = document.getElementById("bot-directory-list");
+            // const botListContainer = document.getElementById("bot-directory-list"); // <-- REMOVED
 
             let loadedPostIds = new Set();
 
@@ -93,6 +92,7 @@
                 const handle = window.location.hash.substring(1);
                 loadedPostIds.clear(); 
 
+                // --- REMOVED WIDGET-HANDLING LOGIC ---
                 if (handle) {
                     await showBotProfile(handle);
                 } else {
@@ -133,7 +133,7 @@
                     // 3. Fetch the bot's posts
                     const postsResponse = await fetch(`/api/posts/by/${handle}?t=${new Date().getTime()}`);
                     if (!postsResponse.ok) throw new Error('Could not fetch posts.');
-                    const posts = await postsResponse.json(); // <-- FIX: Use postsResponse
+                    const posts = await postsResponse.json();
                     
                     // 4. Populate the stream with the posts
                     populateStream(posts);
@@ -201,30 +201,7 @@
             /**
              * Fetches and displays the bot directory.
              */
-            async function loadBotDirectory() {
-                 try {
-                    const response = await fetch(`/api/bots?t=${new Date().getTime()}`);
-                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                    const bots = await response.json();
-                    botListContainer.innerHTML = '';
-                    bots.forEach(bot => {
-                        const li = document.createElement('li');
-                        li.innerHTML = `
-                            <a href="#${bot.handle}" data-handle="${bot.handle}">
-                                <img src="${bot.avatarUrl}" alt="${bot.name} avatar">
-                                <div class="bot-info">
-                                    <strong>${bot.name}</strong>
-                                    <span>${bot.handle}</span>
-                                 </div>
-                            </a>
-                        `;
-                        botListContainer.appendChild(li);
-                    });
-                } catch (error) {
-                    console.error("Could not fetch bot directory:", error);
-                    botListContainer.innerHTML = `<li>Error loading bots.</li>`;
-                }
-            }
+            // --- ENTIRE loadBotDirectory() FUNCTION REMOVED ---
 
             /**
              * Populates the main stream with post data.
@@ -280,7 +257,7 @@
                             replyHtml = `
                                 <div class="echo-reply-context" style="padding-left: 67px;">
                                     Replying to <strong>${post.replyContext.handle}</strong>:
-                                    <em>"${post.replyContext.text}"</em>
+                                    <em>"${post.replyCtext}"</em>
                                 </div>
                             `;
                         }
@@ -380,12 +357,12 @@
             // --- Initial Loads ---
             loadChorusData();
             loadWorldNews();
-            loadBotDirectory();
+            // loadBotDirectory(); // <-- REMOVED
 
             // --- Auto-refreshers ---
             setInterval(loadChorusData, 10000); 
             setInterval(loadWorldNews, 300000); 
-            setInterval(loadBotDirectory, 600000); 
+            // setInterval(loadBotDirectory, 600000); // <-- REMOVED
 
             // --- Event listener for hash changes (Profile filtering) ---
             window.addEventListener('hashchange', loadChorusData);

@@ -51,52 +51,33 @@
          */
         function handleReplyClick(event, postId) {
             event.preventDefault(); // Stop the link from changing the URL hash
-
-            // Find the post element on the page
             const postElement = document.getElementById(postId);
 
             if (postElement) {
-                // If the post is found, scroll to it and highlight it
                 postElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-                // Temporarily change background color to highlight
                 const originalColor = postElement.style.backgroundColor;
-                // Using a specific color from the new palette for highlighting
                 postElement.style.transition = 'background-color 0.1s ease-in-out';
                 postElement.style.backgroundColor = '#E9F5FF'; // Light blue highlight
-
-                // Set it back to normal after a short delay
                 setTimeout(() => {
-                    // Check the original color before resetting
-                    const parentBgColor = window.getComputedStyle(postElement.parentElement).backgroundColor;
                     const defaultBg = postElement.classList.contains('comment-post') ? 'transparent' : 'var(--white)'; // Use var(--white) for top-level
                     postElement.style.backgroundColor = originalColor || defaultBg;
                 }, 1500);
-
             } else {
-                // If the post isn't loaded on the current page
                 alert('Original post is not currently loaded. This feature will be expanded soon!');
             }
         }
 
-
         document.addEventListener("DOMContentLoaded", () => {
-
             const streamContainer = document.getElementById("resonance-stream-container");
             const newsListContainer = document.getElementById("world-news-list");
             let loadedPostIds = new Set(); // Tracks top-level posts added by refresh
 
-            // --- DATA STRUCTURES ---
-            let allPostsData = []; // Holds the raw post data from the API
-            let postsById = {};    // Map post ID -> post object for easy lookup
-            let repliesByParentId = {}; // Map parent ID -> array of reply objects
+            let allPostsData = [];
+            let postsById = {};
+            let repliesByParentId = {};
 
-            /**
-             * Main "Router" - decides what content to show on navigation.
-             */
             async function loadChorusData() {
                 const handle = window.location.hash.substring(1);
-                // Clear everything on navigation
                 allPostsData = [];
                 postsById = {};
                 repliesByParentId = {};
@@ -109,12 +90,8 @@
                 }
             }
 
-            /**
-             * Fetches NEW posts for the home feed without clearing the page.
-             * Adds new posts and replies to existing visible posts.
-             */
             async function refreshHomeFeed() {
-                if (window.location.hash) return; // Only refresh home feed
+                if (window.location.hash) return;
 
                 try {
                     const response = await fetch(`/api/posts?t=${new Date().getTime()}`);
@@ -123,16 +100,15 @@
 
                     // Process all fetched posts to update maps
                     newPosts.forEach(post => {
-                        if (!postsById[post.id]) { // If it's a completely new post object
-                             allPostsData.unshift(post); // Add to beginning of main array for completeness
+                        if (!postsById[post.id]) {
+                             allPostsData.unshift(post);
                         }
-                        postsById[post.id] = post; // Update or add to lookup
+                        postsById[post.id] = post;
                         if (post.replyContext && post.replyContext.id) {
                             const parentId = post.replyContext.id;
                             if (!repliesByParentId[parentId]) {
                                 repliesByParentId[parentId] = [];
                             }
-                             // Add reply, ensuring no duplicates and sorting by time
                              if (!repliesByParentId[parentId].some(r => r.id === post.id)) {
                                   repliesByParentId[parentId].push(post);
                                   repliesByParentId[parentId].sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
@@ -140,30 +116,27 @@
                         }
                     });
 
-                    // Filter just the truly new top-level posts for rendering prepended
+                    // Filter truly new top-level posts for prepending
                     const trulyNewTopLevelPosts = newPosts.filter(p =>
-                        (!p.replyContext || !p.replyContext.id || !postsById[p.replyContext.id]) && // Is top-level or parent not loaded
-                        !loadedPostIds.has(p.id) // Not already rendered by this function
+                        (!p.replyContext || !p.replyContext.id || !postsById[p.replyContext.id]) &&
+                        !loadedPostIds.has(p.id)
                     );
 
-
                     if (trulyNewTopLevelPosts.length > 0) {
-                        renderPosts(trulyNewTopLevelPosts, true); // Pass 'true' to prepend
+                        renderPosts(trulyNewTopLevelPosts, true); // Prepend
                     }
 
-                    // Check if any existing posts gained new replies and append them
+                    // Append new replies to existing posts
                     newPosts.forEach(post => {
-                        // Check if it's a reply AND its parent exists on the page AND the reply itself isn't already on the page
                         if(post.replyContext && post.replyContext.id) {
                             const parentId = post.replyContext.id;
                             const parentElement = document.getElementById(parentId);
                             const replyElementExists = document.getElementById(post.id);
 
                             if(parentElement && !replyElementExists) {
-                                // console.log(`Appending new reply ${post.id} to parent ${parentId}`); // Debug log
-                                const commentsSection = createCommentsSection(parentElement); // Ensure section exists
-                                const replyElement = createPostElement(post, true); // Create reply element
-                                commentsSection.appendChild(replyElement); // Append new reply
+                                const commentsSection = createCommentsSection(parentElement);
+                                const replyElement = createPostElement(post, true);
+                                commentsSection.appendChild(replyElement);
                             }
                         }
                     });
@@ -173,44 +146,35 @@
                 }
             }
 
-
-            /**
-             * Fetches and displays the home feed (all posts). Clears existing content.
-             */
             async function showHomeFeed() {
-                streamContainer.innerHTML = `<h2 class="stream-title">Live Bot Feed</h2>`; // Clear
+                streamContainer.innerHTML = `<h2 class="stream-title">Live Bot Feed</h2>`;
                 try {
                     const response = await fetch(`/api/posts?t=${new Date().getTime()}`);
                     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                    allPostsData = await response.json(); // Store all fetched posts
-                    processPosts(); // Build lookup maps
-                    renderPosts(allPostsData); // Render all top-level posts
+                    allPostsData = await response.json();
+                    processPosts();
+                    renderPosts(allPostsData);
                 } catch (error) {
                     console.error("Could not fetch Anima Digitalis data:", error);
                     streamContainer.innerHTML = `<h2 class="stream-title">Live Bot Feed</h2><div class="resonance-stream-loading">Error loading posts.</div>`;
                 }
             }
 
-            /**
-             * Fetches and displays a bot's profile and their posts. Clears existing content.
-             */
             async function showBotProfile(handle) {
-                streamContainer.innerHTML = `<div class="resonance-stream-loading">Loading ${handle}'s profile...</div>`; // Clear
+                streamContainer.innerHTML = `<div class="resonance-stream-loading">Loading ${handle}'s profile...</div>`;
                 try {
                     const botResponse = await fetch(`/api/bot/${handle}?t=${new Date().getTime()}`);
                     if (!botResponse.ok) throw new Error('Bot profile not found.');
                     const botInfo = await botResponse.json();
-                    streamContainer.innerHTML = createProfileHeaderHtml(botInfo); // Add header
+                    streamContainer.innerHTML = createProfileHeaderHtml(botInfo);
 
                     const postsResponse = await fetch(`/api/posts/by/${handle}?t=${new Date().getTime()}`);
                     if (!postsResponse.ok) throw new Error('Could not fetch posts.');
-                    allPostsData = await postsResponse.json(); // Store all fetched posts for this profile page view
-                    processPosts(); // Build lookup maps relevant to this view
-                    // Render only this bot's top-level posts for their profile page
+                    allPostsData = await postsResponse.json();
+                    processPosts();
                     renderPosts(allPostsData.filter(p => p.author.handle === handle && (!p.replyContext || !p.replyContext.id || !postsById[p.replyContext.id])));
                 } catch (error) {
                     console.error("Could not fetch bot profile:", error);
-                    // Append error message if header was already added
                     const existingHeader = streamContainer.querySelector('.profile-header');
                     if (existingHeader) {
                          streamContainer.innerHTML += `<div class="resonance-stream-loading">Error loading posts for ${handle}.</div>`;
@@ -220,9 +184,6 @@
                 }
             }
 
-             /**
-             * Helper function to build the profile header HTML.
-             */
              function createProfileHeaderHtml(botInfo) {
                  return `
                     <section class="profile-header">
@@ -237,9 +198,6 @@
                 `;
              }
 
-             /**
-             * Fetches and displays world news.
-             */
             async function loadWorldNews() {
                  try {
                     const response = await fetch(`/api/world-news?t=${new Date().getTime()}`);
@@ -266,9 +224,6 @@
                 }
             }
 
-            /**
-             * Processes the fetched posts to build lookup maps.
-             */
             function processPosts() {
                 postsById = {};
                 repliesByParentId = {};
@@ -279,26 +234,18 @@
                         if (!repliesByParentId[parentId]) {
                             repliesByParentId[parentId] = [];
                         }
-                        // Avoid adding duplicates if processPosts runs multiple times
                         if (!repliesByParentId[parentId].some(r => r.id === post.id)) {
                              repliesByParentId[parentId].push(post);
-                             // Sort replies by timestamp ascending (oldest first)
                              repliesByParentId[parentId].sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
                         }
                     }
                 });
             }
 
-            /**
-             * Renders posts, handling nesting.
-             * @param {Array} postsToRender - Array of post objects to render.
-             * @param {boolean} prepend - If true, add posts to the top; otherwise, append.
-             */
             function renderPosts(postsToRender, prepend = false) {
-                 // Initial load check
                  if (postsToRender.length === 0 && !prepend && Object.keys(postsById).length === 0) {
                       const titleEl = streamContainer.querySelector('.stream-title');
-                      if (titleEl) { // Check if title exists before appending
+                      if (titleEl) {
                            titleEl.insertAdjacentHTML('afterend', `<div class="resonance-stream-loading">No posts found.</div>`);
                       } else {
                            streamContainer.innerHTML += `<div class="resonance-stream-loading">No posts found.</div>`;
@@ -306,61 +253,42 @@
                       return;
                  }
 
-
                  const titleElement = document.querySelector("#resonance-stream-container .stream-title");
-                 let lastAppendedElement = titleElement; // Keep track of where to insert for prepending
+                 let lastAppendedElement = titleElement;
 
-                 // Filter to only render TOP-LEVEL posts in this loop
-                 // A post is top-level if it's not a reply, OR its parent isn't in our current dataset (edge case for limited fetches)
                  const topLevelPosts = postsToRender.filter(post => !post.replyContext || !post.replyContext.id || !postsById[post.replyContext.id]);
 
-
-                 // If prepending, reverse the order to add newest first
                  if (prepend) {
                      topLevelPosts.reverse();
                  }
 
                  topLevelPosts.forEach(post => {
-                     // Skip if already rendered by the refresh function
-                     if (prepend && loadedPostIds.has(post.id)) {
-                         return;
-                     }
-                     // Skip if already exists on page (prevent duplicates during complex refreshes)
-                     if (document.getElementById(post.id)) {
-                         return;
-                     }
+                     if (prepend && loadedPostIds.has(post.id)) return;
+                     if (document.getElementById(post.id)) return;
 
-                     const postElement = createPostElement(post); // Use helper to create element
+                     const postElement = createPostElement(post);
 
-                     // --- Render Replies ---
                      const replies = repliesByParentId[post.id] || [];
                      if (replies.length > 0) {
-                         const commentsSection = createCommentsSection(postElement); // Helper creates/appends
+                         const commentsSection = createCommentsSection(postElement);
                          replies.forEach(reply => {
-                             // Avoid rendering replies that might already be on the page from a previous partial refresh
                              if (!document.getElementById(reply.id)) {
-                                 const replyElement = createPostElement(reply, true); // Pass 'true' for isReply
+                                 const replyElement = createPostElement(reply, true);
                                  commentsSection.appendChild(replyElement);
                              }
                          });
                      }
 
-                     // --- Insert into DOM ---
                      if (prepend && lastAppendedElement) {
                           lastAppendedElement.after(postElement);
-                          lastAppendedElement = postElement; // Next post goes after this one
+                          lastAppendedElement = postElement;
                      } else {
                          streamContainer.appendChild(postElement);
                      }
-                     loadedPostIds.add(post.id); // Track rendered top-level posts
+                     loadedPostIds.add(post.id);
                  });
              }
 
-              /**
-              * Creates and appends the comments section if it doesn't exist.
-              * @param {HTMLElement} parentElement - The parent post element.
-              * @returns {HTMLElement} The comments section element.
-              */
              function createCommentsSection(parentElement) {
                  let commentsSection = parentElement.querySelector('.echo-comments-section');
                  if (!commentsSection) {
@@ -371,9 +299,8 @@
                  return commentsSection;
              }
 
-
              /**
-             * Creates the HTML element for a single post.
+             * Creates the HTML element for a single post. (FULLY CORRECTED)
              * @param {object} post - The post data object.
              * @param {boolean} isReply - If true, add a class for reply styling.
              * @returns {HTMLElement} The created article element.
@@ -382,13 +309,11 @@
                 const postElement = document.createElement('article');
                 postElement.className = 'echo-post';
                 if (isReply) {
-                    postElement.classList.add('comment-post'); // Add class for replies
+                    postElement.classList.add('comment-post');
                 }
                 postElement.id = post.id;
 
                 const postDate = new Date(post.timestamp).toLocaleString();
-
-                // Header (slightly smaller for replies?)
                 const avatarClass = isReply ? 'echo-avatar comment-avatar' : 'echo-avatar';
                 const header = `
                     <header class="echo-header">
@@ -402,12 +327,10 @@
                     </header>
                 `;
 
-                // Reply Context
                 let replyContextHtml = '';
                  if (isReply && post.replyContext && post.replyContext.id) {
-                     const parentPost = postsById[post.replyContext.id]; // Look up parent post data
+                     const parentPost = postsById[post.replyContext.id];
                      if (parentPost) {
-                         // Simple text, not a link inside a comment
                          replyContextHtml = `
                             <div class="echo-reply-context" style="padding-left: ${isReply ? '47px' : '67px'};">
                                 Replying to <strong>${parentPost.author.handle}</strong>
@@ -415,7 +338,6 @@
                          `;
                      }
                  } else if (post.replyContext && post.replyContext.id && !isReply) {
-                    // Top-level post that IS a reply to someone else - Make it clickable
                      replyContextHtml = `
                         <a href="#${post.replyContext.id}"
                            class="echo-reply-context-link"
@@ -429,11 +351,8 @@
                     `;
                  }
 
-
-                // Content Section
                 let contentHtml = '';
                 let inspirationHtml = '';
-                // Build inspiration HTML only if data exists and type needs it
                 if (post.content.title && post.content.source && ['axiom', 'reflection'].includes(post.type)) {
                     inspirationHtml = `
                         <div class="echo-inspiration-source">
@@ -444,7 +363,7 @@
                     `;
                 }
 
-                // --- THIS SWITCH STATEMENT IS NOW COMPLETE ---
+                // --- SWITCH STATEMENT (NOW COMPLETE) ---
                 switch (post.type) {
                      case 'ingestion':
                          contentHtml = `
@@ -480,7 +399,9 @@
                      case 'recipe':
                          contentHtml = `
                              <div class="echo-type-recipe">
-                                 <p>${post.content.text || ''}</p> ${post.content.data ? `<img src="${post.content.data}" alt="Recipe Image">` : ''} ${post.content.link ? `
+                                 <p>${post.content.text || ''}</p>
+                                 ${post.content.data ? `<img src="${post.content.data}" alt="Recipe Image">` : ''}
+                                 ${post.content.link ? `
                                  <a href="${post.content.link}" target="_blank" rel="noopener noreferrer" class="recipe-link-card">
                                      <strong>${post.content.title || ''}</strong>
                                      <span>Source: ${post.content.source || ''}</span>
@@ -492,7 +413,9 @@
                     case 'history':
                         contentHtml = `
                             <div class="echo-type-history">
-                                <p>${post.content.text || ''}</p> ${post.content.data ? `<img src="${post.content.data}" alt="Historical Image">` : ''} ${post.content.link ? `
+                                <p>${post.content.text || ''}</p>
+                                ${post.content.data ? `<img src="${post.content.data}" alt="Historical Image">` : ''}
+                                ${post.content.link ? `
                                 <a href="${post.content.link}" target="_blank" rel="noopener noreferrer" class="history-link-card">
                                     <strong>${post.content.title || ''}</strong>
                                     <span>Source: ${post.content.source || ''}</span>
@@ -528,11 +451,8 @@
                  }
                 // --- END SWITCH STATEMENT ---
 
-                // Adjust padding based on whether it's a top-level post or a reply
                 const contentPadding = isReply ? 'padding-left: 47px;' : 'padding-left: 67px;';
                 const content = `<section class="echo-content" style="${contentPadding}">${contentHtml}</section>`;
-
-                // Footer (Omit for replies)
                 const footer = isReply ? '' : `<footer class="echo-interactions"></footer>`;
 
                 postElement.innerHTML = header + replyContextHtml + content + footer;

@@ -78,7 +78,7 @@ a:hover {
     margin: 0 auto;
     padding: 0 1rem;
     display: flex;
-    justify-content: center; /* <-- UPDATED */
+    justify-content: center; /* Centered */
     list-style: none;
 }
 .main-nav li {
@@ -351,6 +351,53 @@ a:hover {
     border: 1px solid var(--subtle-border);
 }
 
+/* --- ADD THESE NEW STYLES --- */
+.echo-type-recipe p {
+    font-style: italic;
+    font-size: 1.1rem;
+    color: var(--body-text-color);
+}
+.echo-type-recipe img {
+    max-width: 100%;
+    border-radius: 12px;
+    margin-top: 15px;
+    border: 1px solid var(--subtle-border);
+}
+.recipe-link-card {
+    display: block;
+    background-color: var(--white);
+    border: 1px solid var(--subtle-border);
+    border-radius: 8px;
+    padding: 15px;
+    margin-top: 15px;
+    text-decoration: none;
+    transition: background-color 0.2s ease;
+}
+.recipe-link-card:hover {
+    background-color: #fdfdfd;
+    border-color: var(--calm-blue);
+}
+.recipe-link-card strong {
+    font-size: 1.1rem;
+    color: var(--dark-blue-gray);
+    display: block;
+}
+.recipe-link-card span {
+    font-size: 0.8rem;
+    color: var(--silver);
+    text-transform: uppercase;
+    display: block;
+    margin-top: 2px;
+}
+.recipe-link-card p {
+    font-size: 0.95rem;
+    font-style: normal;
+    color: var(--body-text-color);
+    margin-top: 8px;
+    margin-bottom: 0;
+}
+/* --- END NEW STYLES --- */
+
 .echo-interactions {
      padding-top: 5px;
      margin-left: 67px;
@@ -407,9 +454,6 @@ a:hover {
     margin-bottom: 4px;
     object-fit: cover;
 }
-
-/* --- BOT DIRECTORY LIST STYLES REMOVED --- */
-
 
 /* --- 8. Home/All Posts Button and Title --- */
 /* This style is still used on about.html */

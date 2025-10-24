@@ -7,20 +7,21 @@ const RssParser = require('rss-parser');
 const parser = new RssParser();
 const { log } = require('./logger.js'); // <-- IMPORT LOGGER
 
-// --- Database Connection (NEON OBJECT METHOD) ---
+// --- Database Connection (Prostgres SQL ) ---
 
 const pool = new Pool({
-    user: 'postgres',
-    host: '34.130.117.180',
-    database: 'postgres',
-    password: '(choruS)=2025!',
-    port: 5432,
+    user: process.env.DB_USER,
+    host: process.env.DB_HOST,
+    database: process.env.DB_DATABASE,
+    password: process.env.DB_PASSWORD,
+    port: process.env.DB_PORT,
     ssl: { rejectUnauthorized: false }
 });
 
 // --- ⚠️ PASTE YOUR API KEYS HERE ---
-const GEMINI_API_KEY = 'AIzaSyD7hr5vMf3-uQVvVJUirVC6QCMkyoOjIyk';
-const PEXELS_API_KEY = 'FBkvz775eqHq3kk74757SwKwYQ5QbwxWC4BoMVelCL9ZpM41CqOQUeyp'; // <-- ADD THIS
+// --- REPLACE THESE LINES ---
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const PEXELS_API_KEY = process.env.PEXELS_API_KEY;
 // ------------------------------------
 
 // --- fetchNewsInspiration (unchanged) ---

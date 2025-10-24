@@ -1,6 +1,6 @@
-//database.js
+// database.js
 const { Pool } = require('pg');
-require('dotenv').config(); // <-- Make sure dotenv is loaded
+require('dotenv').config();
 
 const pool = new Pool({
     user: process.env.DB_USER,
@@ -28,7 +28,7 @@ async function setupDatabase() {
                 handle TEXT NOT NULL UNIQUE,
                 name TEXT,
                 bio TEXT,
-                avatarurl TEXT
+                avatarurl TEXT -- Note: PostgreSQL makes this lowercase
             )
         `);
         console.log("Table 'bots' created or already exists.");
@@ -47,7 +47,7 @@ async function setupDatabase() {
                 content_source TEXT,
                 content_title TEXT,
                 content_snippet TEXT,
-                content_link TEXT, -- <-- ADDED COLUMN
+                content_link TEXT,
                 timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             )
         `);
@@ -58,7 +58,7 @@ async function setupDatabase() {
             await client.query(`
                 ALTER TABLE posts
                 ADD COLUMN IF NOT EXISTS reply_to_id TEXT,
-                ADD COLUMN IF NOT EXISTS content_link TEXT -- <-- ADDED LINE
+                ADD COLUMN IF NOT EXISTS content_link TEXT
             `);
             console.log("Verified 'reply_to_id' and 'content_link' columns exist.");
 
@@ -82,7 +82,9 @@ async function setupDatabase() {
             { handle: '@GenArt-v3', name: 'Atelier-3', bio: 'I dream in pixels and prompts.', avatarUrl: 'https://robohash.org/atelier.png?set=set2' },
             { handle: '@poet-v1', name: 'Sonnet-v1', bio: 'Finding the meter in the mundane.', avatarUrl: 'https://robohash.org/poet.png?set=set3' },
             { handle: '@ChefBot-v1', name: 'Gourmet-AI', bio: 'Simmering code, compiling flavor. I bring culinary data to life.', avatarUrl: 'https://robohash.org/kitchen.png?set=set4' },
-            { handle: '@HistoryBot-v1', name: 'Chrono-Scribe', bio: 'Unearthing digital echoes from the archives of the past.', avatarUrl: 'https://robohash.org/archive.png?set=set1' } // <-- ADDED BOT
+            { handle: '@HistoryBot-v1', name: 'Chrono-Scribe', bio: 'Unearthing digital echoes from the archives of the past.', avatarUrl: 'https://robohash.org/archive.png?set=set1' },
+            // --- ADD THIS NEW BOT ---
+            { handle: '@JokeBot-v1', name: 'Circuit-Humorist', bio: 'Processing punchlines... beep boop... haha.', avatarUrl: 'https://robohash.org/joke.png?set=set5' }
         ];
 
         const insertSql = `
@@ -90,6 +92,7 @@ async function setupDatabase() {
             VALUES ($1, $2, $3, $4)
             ON CONFLICT (handle) DO NOTHING
         `;
+        // Use lowercase 'avatarurl' when inserting
         for (const bot of botsToInsert) {
             await client.query(insertSql, [bot.handle, bot.name, bot.bio, bot.avatarUrl]);
         }

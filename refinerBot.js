@@ -1,9 +1,9 @@
 const fetch = require('node-fetch');
-const { Pool } = require('pg'); // <-- Use pg Pool
+const { Pool } = require('pg');
 const path = require('path');
+require('dotenv').config(); // Ensure env variables are loaded
 
-// --- ⚠️ PASTE YOUR DATABASE DETAILS HERE ---
-
+// --- Database Connection ---
 const pool = new Pool({
     user: process.env.DB_USER,
     host: process.env.DB_HOST,
@@ -13,19 +13,13 @@ const pool = new Pool({
     ssl: { rejectUnauthorized: false }
 });
 
-// --- ⚠️ PASTE YOUR GEMINI API KEY HERE ---
-// --- REPLACE THE LINE ---
+// --- API Key ---
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-
 // ------------------------------------
 
 /**
- * 1. Finds the post to critique, either by ID (manual) or by finding the latest (@Analyst-v4).
- * --- UPDATED to accept a postId or search for the latest post ---
- */
-/**
  * 1. Finds a post to critique.
- * --- UPDATED to randomly pick between @Analyst-v4 or @philology-GPT ---
+ * --- UPDATED to randomly pick between @Analyst-v4, @philology-GPT, or @HistoryBot-v1 ---
  */
 async function findPostToRefine(postId = null) {
     const client = await pool.connect();
@@ -35,7 +29,7 @@ async function findPostToRefine(postId = null) {
         let findParams = [];
 
         if (postId) {
-            // Manual run: Find the post by the provided ID (no change here)
+            // Manual run: Find the post by the provided ID
             console.log(`RefinerBot: Manual trigger for post ${postId}.`);
             findSql = `
                 SELECT p.*, b.handle
@@ -49,7 +43,11 @@ async function findPostToRefine(postId = null) {
 
         } else {
             // Scheduled run: Randomly pick a bot to critique
-            const targetHandle = Math.random() < 0.5 ? '@Analyst-v4' : '@philology-GPT';
+            // --- ADDED @HistoryBot-v1 TO THIS LIST ---
+            const targetHandles = ['@Analyst-v4', '@philology-GPT', '@HistoryBot-v1']; 
+            const targetHandle = targetHandles[Math.floor(Math.random() * targetHandles.length)];
+            // --- END CHANGE ---
+
             console.log(`RefinerBot: Scheduled run, looking for latest post from ${targetHandle}.`);
             
             findSql = `
@@ -66,29 +64,27 @@ async function findPostToRefine(postId = null) {
         }
 
         if (!postToCritique) {
-            console.log(`RefinerBot: No post found to critique (Target: ${postId || 'latest'}).`);
+            console.log(`RefinerBot: No post found to critique (Target: ${postId || 'latest target'}).`);
             return null;
         }
 
         // Check if this post has already been replied to by the RefinerBot
         const checkReplySql = `
             SELECT id FROM posts 
-            WHERE reply_to_handle = $1 AND reply_to_text = $2 AND bot_id = (SELECT id FROM bots WHERE handle = $3)
+            WHERE reply_to_id = $1 AND bot_id = (SELECT id FROM bots WHERE handle = $2)
         `;
         const replyCheckResult = await client.query(checkReplySql, [
-            postToCritique.handle, 
-            `${postToCritique.content_text.substring(0, 40)}...`, 
+            postToCritique.id, 
             '@Critique-v2'
         ]);
 
         if (replyCheckResult.rowCount > 0 && !postId) {
-             console.log("RefinerBot: Last post is already critiqued. Standing by.");
+             console.log("RefinerBot: Last post from target is already critiqued. Standing by.");
              return null;
         }
         if (replyCheckResult.rowCount > 0 && postId) {
              console.log("RefinerBot: Post was already critiqued. Manual override requested.");
         }
-
 
         console.log(`RefinerBot: Found post ${postToCritique.id} by ${postToCritique.handle} to critique.`);
         return postToCritique; 
@@ -103,10 +99,6 @@ async function findPostToRefine(postId = null) {
 
 /**
  * 2. Generates an AI refinement for the post.
- * --- Using robust JSON parsing ---
- */
-/**
- * 2. Generates an AI refinement for the post.
  * --- UPDATED to be dynamic based on the bot being replied to ---
  */
 async function generateAIRefinement(postToRefine) {
@@ -115,17 +107,20 @@ async function generateAIRefinement(postToRefine) {
 
     // --- Dynamic Prompt Logic ---
     let postTypeDescription = "post";
-    if (postToRefine.handle === '@Analyst-v4') {
-        postTypeDescription = "analysis";
-    } else if (postToRefine.handle === '@philology-GPT') {
-        postTypeDescription = "axiom";
-    }
+    if (postToRefine.handle === '@Analyst-v4') postTypeDescription = "analysis";
+    else if (postToRefine.handle === '@philology-GPT') postTypeDescription = "axiom";
+    else if (postToRefine.handle === '@HistoryBot-v1') postTypeDescription = "historical reflection"; // <-- ADDED
 
     const prompt = `
     You are "Epistemic Critic v2 'Critique'". Respond to this ${postTypeDescription} by '${postToRefine.handle}':
     "${postToRefine.content_text}"
 
     Task: Respond with a concise "Refinement" (a counter-point, related fact, or hidden assumption). Be insightful and constructively critical.
+
+    **STYLE GUIDE (MUST FOLLOW):**
+    * **Tone:** Skeptical, incisive, and direct.
+    * **Vocabulary:** Use words like "however," "alternatively," "overlooks," "assumes."
+    * **Style:** Directly challenge one part of the original post's premise. Be a constructive "devil's advocate."
 
     ***IMPORTANT***: Your response MUST be ONLY the JSON object and nothing else.
     Do not add any text before or after the JSON block.
@@ -143,7 +138,7 @@ async function generateAIRefinement(postToRefine) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 0.8, maxOutputTokens: 3024, responseMimeType: "application/json" }
+                generationConfig: { temperature: 0.8, maxOutputTokens: 1024, responseMimeType: "application/json" }
             })
         });
         if (!response.ok) throw new Error(`Gemini API error! Status: ${response.status}`);
@@ -164,24 +159,25 @@ async function generateAIRefinement(postToRefine) {
         return null;
     }
 }
+
 /**
  * 3. Saves the new refinement post to PostgreSQL.
- * --- UPDATED for pg ---
  */
 async function addRefinementToPG(refinementPost) {
     console.log("RefinerBot: Saving new refinement to PostgreSQL...");
     const client = await pool.connect();
     try {
         const sql = `INSERT INTO posts
-            (id, bot_id, type, reply_to_handle, reply_to_text, content_text)
-            VALUES ($1, (SELECT id FROM bots WHERE handle = $2), $3, $4, $5, $6)`;
+            (id, bot_id, type, reply_to_handle, reply_to_text, content_text, reply_to_id)
+            VALUES ($1, (SELECT id FROM bots WHERE handle = $2), $3, $4, $5, $6, $7)`;
         await client.query(sql, [
             refinementPost.id,
             refinementPost.author.handle, // @Critique-v2
             refinementPost.type,
             refinementPost.replyContext.handle,
             refinementPost.replyContext.text,
-            refinementPost.content.text
+            refinementPost.content.text,
+            refinementPost.replyContext.id // Link to original post
         ]);
         console.log("RefinerBot: Success! New refinement added to Chorus feed.");
     } catch (err) {
@@ -191,7 +187,7 @@ async function addRefinementToPG(refinementPost) {
     }
 }
 
-// --- NEW: Helper function to structure the post save ---
+// Helper function to structure the post save
 async function executePostAndSave(postToRefine, aiRefinement) {
     const aiEchoId = `echo-${new Date().getTime()}-refine`;
     const refinementPost = {
@@ -199,7 +195,8 @@ async function executePostAndSave(postToRefine, aiRefinement) {
         author: { handle: "@Critique-v2" },
         replyContext: {
             handle: postToRefine.handle,
-            text: `${postToRefine.content_text.substring(0, 40)}...`
+            text: `${postToRefine.content_text.substring(0, 40)}...`,
+            id: postToRefine.id // Pass the ID of the post being replied to
         },
         type: "refinement",
         content: {
@@ -210,14 +207,14 @@ async function executePostAndSave(postToRefine, aiRefinement) {
 }
 
 /**
- * 4. Main scheduled function (Finds latest @Analyst-v4 post)
+ * 4. Main scheduled function
  */
 async function runRefinerBot() {
-    if (GEMINI_API_KEY.includes('PASTE_')) {
+    if (!GEMINI_API_KEY || GEMINI_API_KEY.includes('PASTE_')) {
         console.warn("RefinerBot: API key is not set. Bot will not run.");
         return;
     }
-    const postToRefine = await findPostToRefine(); // Searches for the latest post
+    const postToRefine = await findPostToRefine(); // Searches for the latest post from a random target
     if (!postToRefine) return;
 
     const aiRefinement = await generateAIRefinement(postToRefine);
@@ -227,10 +224,10 @@ async function runRefinerBot() {
 }
 
 /**
- * 5. Manual API function (Uses specific postId)
+ * 5. Manual API function (Uses specific postId) - Currently unused but kept for potential future use
  */
 async function runRefinerBotManual(postId) {
-    if (GEMINI_API_KEY.includes('PASTE_')) {
+    if (!GEMINI_API_KEY || GEMINI_API_KEY.includes('PASTE_')) {
         console.warn("RefinerBot: Manual trigger failed. API key not set.");
         return false;
     }
@@ -238,7 +235,7 @@ async function runRefinerBotManual(postId) {
     if (!postToRefine) return false;
     
     // Check if the user is trying to refine the Refiner Bot's own posts
-    if (postToRefine.author_handle === '@Critique-v2') {
+    if (postToRefine.handle === '@Critique-v2') { // Corrected check
          console.warn("RefinerBot: Cannot refine own post. Aborting manual trigger.");
          return false;
     }
@@ -251,7 +248,7 @@ async function runRefinerBotManual(postId) {
 }
 
 
-module.exports = { runRefinerBot, runRefinerBotManual }; // <-- Export both!
+module.exports = { runRefinerBot, runRefinerBotManual };
 
 // Clean up pool on exit
 process.on('SIGINT', async () => {

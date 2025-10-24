@@ -1,4 +1,4 @@
-// In: points to the .env doc
+// server.js
 require('dotenv').config(); 
 
 // --- Imports ---
@@ -14,7 +14,8 @@ const { runArtistBot } = require('./artistBot.js');
 const { runRefinerBot } = require('./refinerBot.js');
 const { runPoetBot } = require('./poetBot.js');
 const { runChefBot } = require('./chefBot.js');
-const { runHistoryBot } = require('./worldHistoryBot.js'); // <-- ADDED
+const { runHistoryBot } = require('./worldHistoryBot.js');
+const { runJokeBot } = require('./jokeBot.js'); // <-- ADDED
 
 // --- App & Middleware Setup ---
 const app = express();
@@ -121,7 +122,7 @@ app.get('/api/posts', async (req, res) => {
             FROM posts p
             JOIN bots b ON p.bot_id = b.id
             ORDER BY p.timestamp DESC
-            LIMIT 30
+            LIMIT 30 -- Fetching more initially to potentially get replies for visible posts
         `;
         const result = await pool.query(sql);
 
@@ -133,7 +134,7 @@ app.get('/api/posts', async (req, res) => {
                 bio: row.bot_bio,
                 avatarUrl: row.bot_avatar
             },
-            replyContext: row.reply_to_handle ? {
+            replyContext: row.reply_to_id ? { // Check for reply_to_id
                 handle: row.reply_to_handle,
                 text: row.reply_to_text,
                 id: row.reply_to_id
@@ -182,6 +183,7 @@ app.get('/api/bot/:handle', async (req, res) => {
 app.get('/api/posts/by/:handle', async (req, res) => {
     const { handle } = req.params;
     try {
+        // Fetch the bot's posts AND any replies to those posts
         const sql = `
             SELECT
                 p.id, p.type, p.reply_to_handle, p.reply_to_text, p.reply_to_id,
@@ -190,21 +192,22 @@ app.get('/api/posts/by/:handle', async (req, res) => {
                 b.handle AS "bot_handle", b.name AS "bot_name", b.bio AS "bot_bio", b.avatarurl AS "bot_avatar"
             FROM posts p
             JOIN bots b ON p.bot_id = b.id
-            WHERE b.handle = $1
+            WHERE b.handle = $1 
+               OR p.reply_to_id IN (SELECT id FROM posts WHERE bot_id = (SELECT id FROM bots WHERE handle = $1))
             ORDER BY p.timestamp DESC
-            LIMIT 30
+            LIMIT 50 -- Fetch more to include replies
         `;
         const result = await pool.query(sql, [handle]);
 
         const formattedPosts = result.rows.map(row => ({
-            id: row.id,
+             id: row.id,
             author: {
                 handle: row.bot_handle,
                 name: row.bot_name,
                 bio: row.bot_bio,
                 avatarUrl: row.bot_avatar
             },
-            replyContext: row.reply_to_handle ? {
+            replyContext: row.reply_to_id ? { // Check for reply_to_id
                 handle: row.reply_to_handle,
                 text: row.reply_to_text,
                 id: row.reply_to_id
@@ -220,8 +223,15 @@ app.get('/api/posts/by/:handle', async (req, res) => {
             },
             timestamp: row.timestamp
         }));
+         // Filter again to ensure only posts *by* the bot or *direct replies* to the bot are included
+         // (The SQL fetches replies to replies sometimes, this cleans it up)
+         const botPostsAndDirectReplies = formattedPosts.filter(p => 
+             p.author.handle === handle || 
+             (p.replyContext && postsById[p.replyContext.id]?.author.handle === handle)
+         );
 
-        res.json(formattedPosts);
+
+        res.json(botPostsAndDirectReplies); // Send the potentially larger list
 
     } catch (err) {
         console.error(`Server: Error fetching posts for ${handle}:`, err.message);
@@ -242,69 +252,62 @@ app.listen(PORT, async () => {
 
     // --- Schedule Bots ---
     const runIngestCycle = async () => {
-        try {
-            console.log("\n--- Running Ingest Cycle ---");
-            await runBot();
-        } catch (e) { console.error("Server: Error in Ingest Cycle:", e.message); }
+        try { console.log("\n--- Running Ingest Cycle ---"); await runBot(); } 
+        catch (e) { console.error("Server: Error in Ingest Cycle:", e.message); }
     };
     setInterval(runIngestCycle, 32 * 60 * 1000);
     
     const runMagnusCycle = async () => {
-        try {
-            console.log("\n--- Running Magnus Cycle ---");
-            await runMagnusBot();
-        } catch (e) { console.error("Server: Error in Magnus Cycle:", e.message); }
+        try { console.log("\n--- Running Magnus Cycle ---"); await runMagnusBot(); }
+        catch (e) { console.error("Server: Error in Magnus Cycle:", e.message); }
     };
     setInterval(runMagnusCycle, 45 * 60 * 1000);
     
     const runArtistCycle = async () => {
-        try {
-            console.log("\n--- Running Artist Cycle ---");
-            await runArtistBot();
-        } catch (e) { console.error("Server: Error in Artist Cycle:", e.message); }
+        try { console.log("\n--- Running Artist Cycle ---"); await runArtistBot(); }
+        catch (e) { console.error("Server: Error in Artist Cycle:", e.message); }
     };
     setInterval(runArtistCycle, 6 * 60 * 60 * 1000); // 6 hours
     
     const runRefinerCycle = async () => {
-        try {
-            console.log("\n--- Running Refiner Cycle ---");
-            await runRefinerBot();
-        } catch (e) { console.error("Server: Error in Refiner Cycle:", e.message); }
+        try { console.log("\n--- Running Refiner Cycle ---"); await runRefinerBot(); }
+        catch (e) { console.error("Server: Error in Refiner Cycle:", e.message); }
     };
     setInterval(runRefinerCycle, 20 * 60 * 1000);
     
     const runPoetCycle = async () => {
-        try {
-            console.log("\n--- Running Poet Cycle ---");
-            await runPoetBot();
-        } catch (e) { console.error("Server: Error in Poet Cycle:", e.message); }
+        try { console.log("\n--- Running Poet Cycle ---"); await runPoetBot(); }
+        catch (e) { console.error("Server: Error in Poet Cycle:", e.message); }
     };
     setInterval(runPoetCycle, 8 * 60 * 60 * 1000); // 8 hours
 
     const runChefCycle = async () => {
-        try {
-            console.log("\n--- Running Chef Cycle ---");
-            await runChefBot();
-        } catch (e) { console.error("Server: Error in Chef Cycle:", e.message); }
+        try { console.log("\n--- Running Chef Cycle ---"); await runChefBot(); }
+        catch (e) { console.error("Server: Error in Chef Cycle:", e.message); }
     };
     setInterval(runChefCycle, 12 * 60 * 60 * 1000); // 12 hours
 
-    const runHistoryCycle = async () => { // <-- ADDED
-        try {
-            console.log("\n--- Running History Cycle ---");
-            await runHistoryBot();
-        } catch (e) { console.error("Server: Error in History Cycle:", e.message); }
+    const runHistoryCycle = async () => {
+        try { console.log("\n--- Running History Cycle ---"); await runHistoryBot(); }
+        catch (e) { console.error("Server: Error in History Cycle:", e.message); }
     };
     setInterval(runHistoryCycle, 12 * 60 * 60 * 1000); // 12 hours
+
+    const runJokeCycle = async () => { // <-- ADDED
+        try { console.log("\n--- Running Joke Cycle ---"); await runJokeBot(); }
+        catch (e) { console.error("Server: Error in Joke Cycle:", e.message); }
+    };
+    setInterval(runJokeCycle, 30 * 60 * 1000); // Every 30 minutes
 
 
     // --- Initial Bot Posts (Staggered) ---
     console.log("Server: Running initial staggered bot posts...");
     setTimeout(runIngestCycle, 2000);
     setTimeout(runMagnusCycle, 4000);
-    setTimeout(runArtistCycle, 6000);
+    setTimeout(runArtistCycle, 6000); 
     setTimeout(runRefinerCycle, 8000);
-    setTimeout(runPoetCycle, 5000);
-    setTimeout(runChefCycle, 7000);
-    setTimeout(runHistoryCycle, 9000); // <-- ADDED
+    setTimeout(runPoetCycle, 5000);   
+    setTimeout(runChefCycle, 7000);    
+    setTimeout(runHistoryCycle, 9000); 
+    setTimeout(runJokeCycle, 10000); // <-- ADDED
 });

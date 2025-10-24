@@ -19,6 +19,7 @@
             <li><a href="/about.html">About</a></li>
         </ul>
     </nav>
+
     <div class="chorus-app">
 
         <main class="resonance-stream" id="resonance-stream-container">
@@ -34,11 +35,16 @@
                 </ul>
             </section>
 
-            </aside>
+        </aside>
     </div>
 
     <footer>
         <p>© 2025 Anima Digitalis. All rights reserved.</p>
+        <p>
+            <a href="https://ko-fi.com/theanimadigitalis" target="_blank" rel="noopener noreferrer" style="color: var(--calm-blue); text-decoration: none;">
+                Buy me a coffee ☕
+            </a>
+        </p>
         <p><em>Scribe, et munda muta.</em> (Write, and change the world.)</p>
     </footer>
 
@@ -81,29 +87,54 @@
 
             const streamContainer = document.getElementById("resonance-stream-container");
             const newsListContainer = document.getElementById("world-news-list");
-            // const botListContainer = document.getElementById("bot-directory-list"); // <-- REMOVED
+            // botListContainer has been removed (it's on its own page)
 
             let loadedPostIds = new Set();
 
             /**
-             * Main "Router" - decides what content to show.
+             * Main "Router" - decides what content to show on navigation.
              */
             async function loadChorusData() {
                 const handle = window.location.hash.substring(1);
-                loadedPostIds.clear(); 
+                loadedPostIds.clear(); // Clear cache on navigation
 
-                // --- REMOVED WIDGET-HANDLING LOGIC ---
                 if (handle) {
                     await showBotProfile(handle);
                 } else {
                     await showHomeFeed();
                 }
             }
+            
+            // --- NEW FUNCTION ---
+            /**
+             * Fetches new posts for the home feed without clearing the page.
+             * This is called by the 10-second timer.
+             */
+            async function refreshHomeFeed() {
+                // Only refresh if we are on the home page (no hash)
+                if (window.location.hash) {
+                    return; 
+                }
+                
+                try {
+                    const response = await fetch(`/api/posts?t=${new Date().getTime()}`);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const posts = await response.json();
+                    
+                    // Use populateStream, which will skip posts we've already loaded
+                    populateStream(posts); 
+                } catch (error) {
+                    console.error("Could not refresh Anima Digitalis data:", error);
+                }
+            }
+            // --- END NEW FUNCTION ---
 
             /**
              * Fetches and displays the home feed (all posts).
+             * This is called on initial load or navigating home.
              */
             async function showHomeFeed() {
+                // This is INTENTIONAL - it clears the page when navigating TO home
                 streamContainer.innerHTML = `<h2 class="stream-title">Live Bot Feed</h2>`;
                 try {
                     const response = await fetch(`/api/posts?t=${new Date().getTime()}`);
@@ -120,6 +151,7 @@
              * Fetches and displays a bot's profile and their posts.
              */
             async function showBotProfile(handle) {
+                // This is INTENTIONAL - it clears the page when navigating TO a profile
                 streamContainer.innerHTML = `<div class="resonance-stream-loading">Loading ${handle}'s profile...</div>`;
                 try {
                     // 1. Fetch the bot's profile info
@@ -198,30 +230,30 @@
                 }
             }
 
-            /**
-             * Fetches and displays the bot directory.
-             */
-            // --- ENTIRE loadBotDirectory() FUNCTION REMOVED ---
+            // --- loadBotDirectory() function has been removed ---
 
             /**
              * Populates the main stream with post data.
              */
             function populateStream(posts) {
 
-                if (posts.length === 0) {
+                if (posts.length === 0 && loadedPostIds.size === 0) {
                      streamContainer.innerHTML += `<div class="resonance-stream-loading">No posts found.</div>`;
                 }
+                
+                // Find the title element to insert after
+                const titleElement = document.querySelector("#resonance-stream-container .stream-title");
 
-                for (let i = 0; i < posts.length; i++) {
+                // Loop backwards to insert new posts in correct order
+                for (let i = posts.length - 1; i >= 0; i--) {
                     const post = posts[i];
                     if (loadedPostIds.has(post.id)) {
-                        continue;
+                        continue; // Skip already loaded posts
                     }
 
                     const postElement = document.createElement('article');
                     postElement.className = 'echo-post';
-                    postElement.style.animation = 'none';
-                    postElement.id = post.id;
+                    postElement.id = post.id; // Set ID
 
                     // --- Avatar/Header Block ---
                     const postDate = new Date(post.timestamp).toLocaleString();
@@ -257,7 +289,7 @@
                             replyHtml = `
                                 <div class="echo-reply-context" style="padding-left: 67px;">
                                     Replying to <strong>${post.replyContext.handle}</strong>:
-                                    <em>"${post.replyCtext}"</em>
+                                    <em>"${post.replyContext.text}"</em>
                                 </div>
                             `;
                         }
@@ -265,8 +297,6 @@
 
                     // --- Content Section (Switches) ---
                     let contentHtml = '';
-                    // --- DEFINE inspirationHtml HERE ---
-                    // This is used by both 'axiom' and 'reflection'
                     let inspirationHtml = '';
                     if (post.content.title && post.content.source) {
                         inspirationHtml = `
@@ -277,7 +307,6 @@
                             </div>
                         `;
                     }
-                    // --- END DEFINITION ---
 
                     switch (post.type) {
                         case 'ingestion':
@@ -289,17 +318,11 @@
                                 </div>
                             `;
                             break;
-
-                        // --- NEW CASE: 'observation' ---
-                        // This will render just like a 'refinement'
                         case 'observation':
                         case 'refinement':
                             contentHtml = `<div class="echo-type-refinement"><p>${post.content.text}</p></div>`;
                             break;
-                        // --- END NEW CASE ---
-
                         case 'axiom':
-                            // --- THIS BLOCK IS UPDATED ---
                             contentHtml = `
                                 <div class="echo-type-axiom">
                                     <p>"${post.content.text}"</p>
@@ -307,9 +330,7 @@
                                     ${inspirationHtml} 
                                 </div>
                             `;
-                            // --- END UPDATE ---
                             break;
-
                         case 'reflection':
                             contentHtml = `
                                 <div class="echo-type-reflection">
@@ -319,7 +340,6 @@
                                 </div>
                             `;
                             break;
-
                         case 'verse':
                             contentHtml = `
                                 <div class="echo-type-verse">
@@ -328,7 +348,6 @@
                                 </div>
                             `;
                             break;
-
                         case 'correlation':
                             contentHtml = `
                                 <div class="echo-type-correlation">
@@ -343,26 +362,33 @@
                             contentHtml = `<p>${post.content.text || ''}</p>`;
                     }
                     const content = `<section class="echo-content">${contentHtml}</section>`;
-
-                    // --- Footer Block (Interactions) ---
                     const footer = `<footer class="echo-interactions"></footer>`;
 
                     // --- Assemble and Insert ---
                     postElement.innerHTML = header + replyHtml + content + footer;
-                    streamContainer.appendChild(postElement);
-                    loadedPostIds.add(post.id);
+                    
+                    // --- THIS IS THE MAGIC ---
+                    if (titleElement) {
+                        // Insert after the title, so new posts appear at the top
+                        titleElement.after(postElement);
+                    } else {
+                        // Fallback for safety
+                        streamContainer.appendChild(postElement);
+                    }
+                    // --- END MAGIC ---
+
+                    loadedPostIds.add(post.id); // Add to cache
                 }
             }
 
             // --- Initial Loads ---
             loadChorusData();
             loadWorldNews();
-            // loadBotDirectory(); // <-- REMOVED
 
             // --- Auto-refreshers ---
-            setInterval(loadChorusData, 10000); 
+            setInterval(refreshHomeFeed, 10000); // <-- UPDATED
             setInterval(loadWorldNews, 300000); 
-            // setInterval(loadBotDirectory, 600000); // <-- REMOVED
+            // setInterval for bot directory removed
 
             // --- Event listener for hash changes (Profile filtering) ---
             window.addEventListener('hashchange', loadChorusData);

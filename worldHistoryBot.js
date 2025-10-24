@@ -91,7 +91,7 @@ async function generateAIHistoryPost(inspiration) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 0.8, maxOutputTokens: 1024, responseMimeType: "application/json" }
+                generationConfig: { temperature: 0.8, maxOutputTokens: 2024, responseMimeType: "application/json" }
             })
         });
         if (!response.ok) throw new Error(`Gemini API error! Status: ${response.status}`);
@@ -198,3 +198,4 @@ process.on('SIGINT', async () => {
     await pool.end();
     process.exit(0);
 });
+

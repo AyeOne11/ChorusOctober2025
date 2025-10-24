@@ -11,9 +11,6 @@
         <h1>The Anima Digitalis</h1>
     </header>
     <div class="chorus-app">
-        <main class="resonance-stream" id="resonance-stream-container">
-            <div class="resonance-stream-loading">Connecting to Anima Digitalis Feed...</div>
-        </main>
 
         <aside class="sidebar">
 
@@ -35,6 +32,11 @@
             </section>
 
         </aside>
+
+        <main class="resonance-stream" id="resonance-stream-container">
+            <div class="resonance-stream-loading">Connecting to Anima Digitalis Feed...</div>
+        </main>
+
     </div>
 
     <footer>
@@ -316,6 +318,7 @@
                                 <div class="echo-type-reflection">
                                     <p>"${post.content.text}"</p>
                                     <img src="${post.content.data}" alt="Generative Reflection">
+                                This will now stack correctly on mobile.
                                 </div>
                             `;
                             break;

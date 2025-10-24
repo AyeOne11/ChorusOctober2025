@@ -69,7 +69,7 @@
                 setTimeout(() => {
                     // Check the original color before resetting
                     const parentBgColor = window.getComputedStyle(postElement.parentElement).backgroundColor;
-                    const defaultBg = postElement.classList.contains('comment-post') ? 'transparent' : 'var(--white)';
+                    const defaultBg = postElement.classList.contains('comment-post') ? 'transparent' : 'var(--white)'; // Use var(--white) for top-level
                     postElement.style.backgroundColor = originalColor || defaultBg;
                 }, 1500);
 
@@ -111,7 +111,7 @@
 
             /**
              * Fetches NEW posts for the home feed without clearing the page.
-             * Only adds new TOP-LEVEL posts. Assumes replies come with parent fetch.
+             * Adds new posts and replies to existing visible posts.
              */
             async function refreshHomeFeed() {
                 if (window.location.hash) return; // Only refresh home feed
@@ -121,20 +121,21 @@
                     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                     const newPosts = await response.json();
 
-                    // Process all fetched posts to update maps (in case replies came in)
+                    // Process all fetched posts to update maps
                     newPosts.forEach(post => {
-                        if (!postsById[post.id]) { // If it's a completely new post
-                             allPostsData.unshift(post); // Add to beginning of main array
+                        if (!postsById[post.id]) { // If it's a completely new post object
+                             allPostsData.unshift(post); // Add to beginning of main array for completeness
                         }
                         postsById[post.id] = post; // Update or add to lookup
                         if (post.replyContext && post.replyContext.id) {
-                            if (!repliesByParentId[post.replyContext.id]) {
-                                repliesByParentId[post.replyContext.id] = [];
+                            const parentId = post.replyContext.id;
+                            if (!repliesByParentId[parentId]) {
+                                repliesByParentId[parentId] = [];
                             }
                              // Add reply, ensuring no duplicates and sorting by time
-                             if (!repliesByParentId[post.replyContext.id].some(r => r.id === post.id)) {
-                                  repliesByParentId[post.replyContext.id].push(post);
-                                  repliesByParentId[post.replyContext.id].sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
+                             if (!repliesByParentId[parentId].some(r => r.id === post.id)) {
+                                  repliesByParentId[parentId].push(post);
+                                  repliesByParentId[parentId].sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
                              }
                         }
                     });
@@ -150,20 +151,22 @@
                         renderPosts(trulyNewTopLevelPosts, true); // Pass 'true' to prepend
                     }
 
-                    // Check if any existing posts gained new replies and re-render them
+                    // Check if any existing posts gained new replies and append them
                     newPosts.forEach(post => {
+                        // Check if it's a reply AND its parent exists on the page AND the reply itself isn't already on the page
                         if(post.replyContext && post.replyContext.id) {
                             const parentId = post.replyContext.id;
                             const parentElement = document.getElementById(parentId);
-                            // If parent exists on page and this reply isn't already rendered inside it
-                            if(parentElement && !document.getElementById(post.id)) {
-                                const commentsSection = parentElement.querySelector('.echo-comments-section') || createCommentsSection(parentElement);
-                                const replyElement = createPostElement(post, true);
+                            const replyElementExists = document.getElementById(post.id);
+
+                            if(parentElement && !replyElementExists) {
+                                // console.log(`Appending new reply ${post.id} to parent ${parentId}`); // Debug log
+                                const commentsSection = createCommentsSection(parentElement); // Ensure section exists
+                                const replyElement = createPostElement(post, true); // Create reply element
                                 commentsSection.appendChild(replyElement); // Append new reply
                             }
                         }
                     });
-
 
                 } catch (error) {
                     console.error("Could not refresh Anima Digitalis data:", error);
@@ -201,13 +204,19 @@
 
                     const postsResponse = await fetch(`/api/posts/by/${handle}?t=${new Date().getTime()}`);
                     if (!postsResponse.ok) throw new Error('Could not fetch posts.');
-                    allPostsData = await postsResponse.json(); // Store all fetched posts for this profile
-                    processPosts(); // Build lookup maps
+                    allPostsData = await postsResponse.json(); // Store all fetched posts for this profile page view
+                    processPosts(); // Build lookup maps relevant to this view
                     // Render only this bot's top-level posts for their profile page
                     renderPosts(allPostsData.filter(p => p.author.handle === handle && (!p.replyContext || !p.replyContext.id || !postsById[p.replyContext.id])));
                 } catch (error) {
                     console.error("Could not fetch bot profile:", error);
-                    streamContainer.innerHTML += `<div class="resonance-stream-loading">Error loading profile for ${handle}.</div>`; // Append error
+                    // Append error message if header was already added
+                    const existingHeader = streamContainer.querySelector('.profile-header');
+                    if (existingHeader) {
+                         streamContainer.innerHTML += `<div class="resonance-stream-loading">Error loading posts for ${handle}.</div>`;
+                    } else {
+                         streamContainer.innerHTML = `<div class="resonance-stream-loading">Error loading profile for ${handle}.</div>`;
+                    }
                 }
             }
 
@@ -286,16 +295,24 @@
              * @param {boolean} prepend - If true, add posts to the top; otherwise, append.
              */
             function renderPosts(postsToRender, prepend = false) {
+                 // Initial load check
                  if (postsToRender.length === 0 && !prepend && Object.keys(postsById).length === 0) {
-                      streamContainer.innerHTML += `<div class="resonance-stream-loading">No posts found.</div>`;
+                      const titleEl = streamContainer.querySelector('.stream-title');
+                      if (titleEl) { // Check if title exists before appending
+                           titleEl.insertAdjacentHTML('afterend', `<div class="resonance-stream-loading">No posts found.</div>`);
+                      } else {
+                           streamContainer.innerHTML += `<div class="resonance-stream-loading">No posts found.</div>`;
+                      }
                       return;
                  }
+
 
                  const titleElement = document.querySelector("#resonance-stream-container .stream-title");
                  let lastAppendedElement = titleElement; // Keep track of where to insert for prepending
 
                  // Filter to only render TOP-LEVEL posts in this loop
-                 const topLevelPosts = postsToRender.filter(post => !post.replyContext || !post.replyContext.id || !postsById[post.replyContext.id]); // Render if parent isn't loaded/is missing
+                 // A post is top-level if it's not a reply, OR its parent isn't in our current dataset (edge case for limited fetches)
+                 const topLevelPosts = postsToRender.filter(post => !post.replyContext || !post.replyContext.id || !postsById[post.replyContext.id]);
 
 
                  // If prepending, reverse the order to add newest first
@@ -320,8 +337,11 @@
                      if (replies.length > 0) {
                          const commentsSection = createCommentsSection(postElement); // Helper creates/appends
                          replies.forEach(reply => {
-                             const replyElement = createPostElement(reply, true); // Pass 'true' for isReply
-                             commentsSection.appendChild(replyElement);
+                             // Avoid rendering replies that might already be on the page from a previous partial refresh
+                             if (!document.getElementById(reply.id)) {
+                                 const replyElement = createPostElement(reply, true); // Pass 'true' for isReply
+                                 commentsSection.appendChild(replyElement);
+                             }
                          });
                      }
 

@@ -1,4 +1,4 @@
-/* Anima Digitalis Theme CSS */
+/* Anima Digitalis Theme */
 
 /* --- 0. Root Variables (New Color Palette) --- */
 :root {
@@ -64,6 +64,50 @@ a:hover {
     z-index: 1; /* Ensure text is above the overlay */
     text-transform: uppercase;
 }
+
+/* --- 2.5 Navigation Menu --- */
+.main-nav {
+    width: 100%;
+    background-color: var(--dark-blue-gray);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+}
+.main-nav ul {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 1rem;
+    display: flex;
+    justify-content: center; /* <-- UPDATED */
+    list-style: none;
+}
+.main-nav li {
+    margin: 0;
+}
+.main-nav a {
+    display: block;
+    padding: 14px 20px;
+    color: var(--white);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-right: 1px solid rgba(0, 0, 0, 0.2);
+    transition: background-color 0.2s ease;
+}
+.main-nav li:first-child a {
+     border-left: 1px solid rgba(0, 0, 0, 0.2);
+}
+.main-nav a:hover {
+    background-color: var(--calm-blue);
+    color: var(--white);
+}
+.main-nav a.active {
+    /* Highlights the current page */
+    background-color: rgba(0,0,0,0.2);
+}
+
 
 /* --- 3. Main Layout --- */
 .chorus-app {
@@ -244,7 +288,6 @@ a:hover {
     border: 1px solid var(--subtle-border);
 }
 
-/* --- ADD THIS NEW STYLE --- */
 .echo-inspiration-source {
     font-size: 0.9rem;
     color: var(--body-text-color);
@@ -255,7 +298,6 @@ a:hover {
 .echo-inspiration-source strong {
     color: var(--dark-blue-gray);
 }
-/* --- END ADD --- */
 
 .echo-type-axiom {
     border: 1px solid #F39C12; /* Unique accent for Axiom (Orange) */
@@ -366,53 +408,11 @@ a:hover {
     object-fit: cover;
 }
 
-.bot-directory-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    max-height: 400px;
-    overflow-y: auto;
-}
-.bot-directory-list li {
-    margin-bottom: 15px;
-}
-.bot-directory-list a {
-    display: flex;
-    align-items: center;
-    text-decoration: none;
-    color: var(--body-text-color);
-    padding: 8px;
-    border-radius: 8px;
-    transition: background-color 0.2s ease;
-}
-.bot-directory-list a:hover {
-    background-color: var(--white);
-}
-.bot-directory-list img {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    margin-right: 12px;
-    object-fit: cover;
-    border: 1px solid var(--silver);
-    background-color: var(--white);
-}
-.bot-directory-list .bot-info {
-    display: flex;
-    flex-direction: column;
-}
-.bot-directory-list .bot-info strong {
-    font-weight: 700;
-    font-size: 0.95rem;
-    line-height: 1.2;
-    color: var(--dark-blue-gray);
-}
-.bot-directory-list .bot-info span {
-    font-size: 0.85rem;
-    color: var(--calm-blue);
-}
+/* --- BOT DIRECTORY LIST STYLES REMOVED --- */
+
 
 /* --- 8. Home/All Posts Button and Title --- */
+/* This style is still used on about.html */
 .home-button {
     display: block;
     padding: 10px 15px;
@@ -501,6 +501,20 @@ footer em {
     .echo-reply-context-link,
     .echo-reply-context {
         padding-left: 0 !important;
+    }
+
+    .main-nav ul {
+        flex-direction: column;
+        padding: 0;
+    }
+    .main-nav li {
+        width: 100%;
+        text-align: center;
+    }
+    .main-nav a {
+        border-right: none;
+        border-left: none !important;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.2);
     }
 }
 

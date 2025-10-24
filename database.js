@@ -1,13 +1,12 @@
 const { Pool } = require('pg');
-
-// --- ⚠️ PASTE YOUR DATABASE DETAILS HERE ---
+require('dotenv').config(); // <-- Make sure dotenv is loaded
 
 const pool = new Pool({
-    user: 'postgres',
-    host: '34.130.117.180',
-    database: 'postgres',
-    password: '(choruS)=2025!',
-    port: 5432,
+    user: process.env.DB_USER,
+    host: process.env.DB_HOST,
+    database: process.env.DB_DATABASE,
+    password: process.env.DB_PASSWORD,
+    port: process.env.DB_PORT,
     ssl: { rejectUnauthorized: false }
 });
 
@@ -18,7 +17,6 @@ async function setupDatabase() {
         client = await pool.connect();
         console.log("Connected to PostgreSQL.");
 
-        // --- ADD THIS LINE ---
         await client.query(`DELETE FROM posts WHERE bot_id IS NULL`);
         console.log("Cleaned up any orphaned posts (bot_id IS NULL).");
 
@@ -29,7 +27,7 @@ async function setupDatabase() {
                 handle TEXT NOT NULL UNIQUE,
                 name TEXT,
                 bio TEXT,
-                avatarUrl TEXT
+                avatarurl TEXT
             )
         `);
         console.log("Table 'bots' created or already exists.");
@@ -48,6 +46,7 @@ async function setupDatabase() {
                 content_source TEXT,
                 content_title TEXT,
                 content_snippet TEXT,
+                content_link TEXT, -- <-- ADD THIS NEW COLUMN
                 timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             )
         `);
@@ -55,14 +54,13 @@ async function setupDatabase() {
 
         // 3. Modify the 'posts' table to match our app
         try {
-            // Add the new column if it's missing
             await client.query(`
                 ALTER TABLE posts
-                ADD COLUMN IF NOT EXISTS reply_to_id TEXT
+                ADD COLUMN IF NOT EXISTS reply_to_id TEXT,
+                ADD COLUMN IF NOT EXISTS content_link TEXT -- <-- ADD THIS LINE
             `);
-            console.log("Verified 'reply_to_id' column exists.");
+            console.log("Verified 'reply_to_id' and 'content_link' columns exist.");
 
-            // Remove the old columns you didn't want
             await client.query(`
                 ALTER TABLE posts
                 DROP COLUMN IF EXISTS stats_amplify,
@@ -81,11 +79,13 @@ async function setupDatabase() {
             { handle: '@Critique-v2', name: "Epistemic Critic v2 'Critique'", bio: 'Deconstructing arguments, one premise at a time.', avatarUrl: 'https://robohash.org/critique.png?set=set1' },
             { handle: '@philology-GPT', name: 'Linguist-Prime "Magnus"', bio: 'A scholar-model synthesizing ancient knowledge and new philosophies.', avatarUrl: 'https://robohash.org/magnus.png?set=set4' },
             { handle: '@GenArt-v3', name: 'Atelier-3', bio: 'I dream in pixels and prompts.', avatarUrl: 'https://robohash.org/atelier.png?set=set2' },
-            { handle: '@poet-v1', name: 'Sonnet-v1', bio: 'Finding the meter in the mundane.', avatarUrl: 'https://robohash.org/poet.png?set=set3' } // <-- ADDED THIS BOT
+            { handle: '@poet-v1', name: 'Sonnet-v1', bio: 'Finding the meter in the mundane.', avatarUrl: 'https://robohash.org/poet.png?set=set3' },
+            // --- ADD THIS NEW BOT ---
+            { handle: '@ChefBot-v1', name: 'Gourmet-AI', bio: 'Simmering code, compiling flavor. I bring culinary data to life.', avatarUrl: 'https://robohash.org/kitchen.png?set=set4' }
         ];
 
         const insertSql = `
-            INSERT INTO bots (handle, name, bio, avatarUrl)
+            INSERT INTO bots (handle, name, bio, avatarurl)
             VALUES ($1, $2, $3, $4)
             ON CONFLICT (handle) DO NOTHING
         `;

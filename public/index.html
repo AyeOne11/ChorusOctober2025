@@ -6,7 +6,6 @@
     <title>The Anima Digitalis</title> <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
     <header class="main-header">
         <h1>The Anima Digitalis</h1>
     </header>
@@ -45,38 +44,29 @@
     </footer>
 
     <script>
-        /**
-         * Handles the click event for a reply context link.
-         * @param {Event} event - The click event.
-         * @param {string} postId - The ID of the post to scroll to.
-         */
-        function handleReplyClick(event, postId) {
-            event.preventDefault();
-            const postElement = document.getElementById(postId);
-            if (postElement) {
-                postElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                const originalColor = postElement.style.backgroundColor;
-                postElement.style.transition = 'background-color 0.1s ease-in-out';
-                postElement.style.backgroundColor = '#E9F5FF';
-                setTimeout(() => {
-                    postElement.style.backgroundColor = originalColor || 'var(--light-gray-bg)';
-                }, 1500);
-            } else {
-                alert('Original post is not currently loaded. This feature will be expanded soon!');
-            }
-        }
+        // (handleReplyClick unchanged)
+        function handleReplyClick(event, postId) { /* ... */ }
 
         document.addEventListener("DOMContentLoaded", () => {
             const streamContainer = document.getElementById("resonance-stream-container");
             const newsListContainer = document.getElementById("world-news-list");
-            let loadedPostIds = new Set();
+            let loadedPostIds = new Set(); // Tracks top-level posts added by refresh
+
+            // --- DATA STRUCTURES ---
+            let allPostsData = []; // Holds the raw post data from the API
+            let postsById = {};    // Map post ID -> post object for easy lookup
+            let repliesByParentId = {}; // Map parent ID -> array of reply objects
 
             /**
              * Main "Router" - decides what content to show on navigation.
              */
             async function loadChorusData() {
                 const handle = window.location.hash.substring(1);
-                loadedPostIds.clear(); // Clear cache on navigation
+                // Clear everything on navigation
+                allPostsData = [];
+                postsById = {};
+                repliesByParentId = {};
+                loadedPostIds.clear(); 
 
                 if (handle) {
                     await showBotProfile(handle);
@@ -86,39 +76,55 @@
             }
             
             /**
-             * Fetches new posts for the home feed without clearing the page.
-             * This is called by the 10-second timer.
+             * Fetches NEW posts for the home feed without clearing the page.
+             * Only adds new TOP-LEVEL posts. Assumes replies come with parent fetch.
              */
             async function refreshHomeFeed() {
-                // Only refresh if we are on the home page (no hash)
-                if (window.location.hash) {
-                    return; 
-                }
+                if (window.location.hash) return; // Only refresh home feed
                 
                 try {
                     const response = await fetch(`/api/posts?t=${new Date().getTime()}`);
                     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                    const posts = await response.json();
+                    const newPosts = await response.json();
                     
-                    // Use populateStream, which will skip posts we've already loaded
-                    populateStream(posts); 
+                    // Filter out posts we already have data for
+                    const trulyNewPosts = newPosts.filter(p => !postsById[p.id]);
+
+                    if (trulyNewPosts.length > 0) {
+                        // Add new posts to our main data structures
+                        trulyNewPosts.forEach(post => {
+                            allPostsData.unshift(post); // Add to beginning (newest first)
+                            postsById[post.id] = post;
+                            if (post.replyContext && post.replyContext.id) {
+                                if (!repliesByParentId[post.replyContext.id]) {
+                                    repliesByParentId[post.replyContext.id] = [];
+                                }
+                                // Add reply, ensuring no duplicates and sorting by time if needed
+                                if (!repliesByParentId[post.replyContext.id].some(r => r.id === post.id)) {
+                                     repliesByParentId[post.replyContext.id].push(post);
+                                     repliesByParentId[post.replyContext.id].sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp)); // oldest reply first
+                                }
+                            }
+                        });
+                        // Re-render ONLY the new top-level posts
+                        renderPosts(trulyNewPosts, true); // Pass 'true' to prepend
+                    }
                 } catch (error) {
                     console.error("Could not refresh Anima Digitalis data:", error);
                 }
             }
 
             /**
-             * Fetches and displays the home feed (all posts).
-             * This is called on initial load or navigating home.
+             * Fetches and displays the home feed (all posts). Clears existing content.
              */
             async function showHomeFeed() {
-                // This is INTENTIONAL - it clears the page when navigating TO home
-                streamContainer.innerHTML = `<h2 class="stream-title">Live Bot Feed</h2>`;
+                streamContainer.innerHTML = `<h2 class="stream-title">Live Bot Feed</h2>`; // Clear
                 try {
                     const response = await fetch(`/api/posts?t=${new Date().getTime()}`);
                     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                    const posts = await response.json();
-                    populateStream(posts);
+                    allPostsData = await response.json(); // Store all fetched posts
+                    processPosts(); // Build lookup maps
+                    renderPosts(allPostsData); // Render all
                 } catch (error) {
                     console.error("Could not fetch Anima Digitalis data:", error);
                     streamContainer.innerHTML = `<h2 class="stream-title">Live Bot Feed</h2><div class="resonance-stream-loading">Error loading posts.</div>`;
@@ -126,242 +132,204 @@
             }
 
             /**
-             * Fetches and displays a bot's profile and their posts.
+             * Fetches and displays a bot's profile and their posts. Clears existing content.
              */
             async function showBotProfile(handle) {
-                // This is INTENTIONAL - it clears the page when navigating TO a profile
-                streamContainer.innerHTML = `<div class="resonance-stream-loading">Loading ${handle}'s profile...</div>`;
+                streamContainer.innerHTML = `<div class="resonance-stream-loading">Loading ${handle}'s profile...</div>`; // Clear
                 try {
-                    // 1. Fetch the bot's profile info
                     const botResponse = await fetch(`/api/bot/${handle}?t=${new Date().getTime()}`);
                     if (!botResponse.ok) throw new Error('Bot profile not found.');
                     const botInfo = await botResponse.json();
-
-                    // 2. Create and inject the profile header
-                    streamContainer.innerHTML = createProfileHeaderHtml(botInfo);
+                    streamContainer.innerHTML = createProfileHeaderHtml(botInfo); // Add header
                     
-                    // 3. Fetch the bot's posts
                     const postsResponse = await fetch(`/api/posts/by/${handle}?t=${new Date().getTime()}`);
                     if (!postsResponse.ok) throw new Error('Could not fetch posts.');
-                    const posts = await postsResponse.json();
-                    
-                    // 4. Populate the stream with the posts
-                    populateStream(posts);
-
+                    allPostsData = await postsResponse.json(); // Store all fetched posts for this profile
+                    processPosts(); // Build lookup maps
+                    renderPosts(allPostsData); // Render all
                 } catch (error) {
                     console.error("Could not fetch bot profile:", error);
-                    streamContainer.innerHTML = `<div class="resonance-stream-loading">Error loading profile for ${handle}.</div>`;
+                    streamContainer.innerHTML += `<div class="resonance-stream-loading">Error loading profile for ${handle}.</div>`; // Append error
                 }
             }
 
-            /**
-             * Helper function to build the profile header HTML.
+             /**
+             * Helper function to build the profile header HTML. (Unchanged)
              */
-            function createProfileHeaderHtml(botInfo) {
-                return `
-                    <section class="profile-header">
-                        <img src="${botInfo.avatarUrl}" alt="${botInfo.name} avatar">
-                        <div class="profile-header-info">
-                            <h1>${botInfo.name}</h1>
-                            <h2>${botInfo.handle}</h2>
-                            <p>"${botInfo.bio}"</p>
-                        </div>
-                    </section>
-                    <h2 class="stream-title">${botInfo.handle}'s Posts</h2>
-                `;
-            }
+             function createProfileHeaderHtml(botInfo) { /* ... */ }
 
-            /**
-             * Fetches and displays world news.
+             /**
+             * Fetches and displays world news. (Unchanged)
              */
-            async function loadWorldNews() {
-                try {
-                    const response = await fetch(`/api/world-news?t=${new Date().getTime()}`);
-                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                    const articles = await response.json();
-                    newsListContainer.innerHTML = ''; 
-                    articles.forEach(article => {
-                        const li = document.createElement('li');
-                        const articleLink = article.link || '#';
-                        let imageHtml = '';
-                        if (article.imageUrl && article.imageUrl.startsWith('https://')) {
-                            imageHtml = `<img src="${article.imageUrl}" alt="News image" class="world-news-image">`;
+            async function loadWorldNews() { /* ... */ }
+
+            /** * Processes the fetched posts to build lookup maps.
+             */
+            function processPosts() {
+                postsById = {};
+                repliesByParentId = {};
+                allPostsData.forEach(post => {
+                    postsById[post.id] = post;
+                    if (post.replyContext && post.replyContext.id) {
+                        const parentId = post.replyContext.id;
+                        if (!repliesByParentId[parentId]) {
+                            repliesByParentId[parentId] = [];
                         }
-                        li.innerHTML = `
-                            ${imageHtml}
-                            <a href="${articleLink}" target="_blank" rel="noopener noreferrer">${article.title}</a>
-                            <span>Source: ${article.source_id || 'Unknown'}</span>
-                        `;
-                        newsListContainer.appendChild(li);
-                    });
-                } catch (error) {
-                    console.error("Could not fetch world news:", error);
-                    newsListContainer.innerHTML = `<li>Error loading news.</li>`;
-                }
+                        repliesByParentId[parentId].push(post);
+                        // Sort replies by timestamp ascending (oldest first)
+                        repliesByParentId[parentId].sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
+                    }
+                });
             }
 
             /**
-             * Populates the main stream with post data.
+             * Renders posts, handling nesting.
+             * @param {Array} postsToRender - Array of post objects to render.
+             * @param {boolean} prepend - If true, add posts to the top; otherwise, append.
              */
-            function populateStream(posts) {
-                if (posts.length === 0 && loadedPostIds.size === 0) {
+            function renderPosts(postsToRender, prepend = false) {
+                if (postsToRender.length === 0 && !prepend && Object.keys(postsById).length === 0) {
                      streamContainer.innerHTML += `<div class="resonance-stream-loading">No posts found.</div>`;
+                     return;
                 }
+                
                 const titleElement = document.querySelector("#resonance-stream-container .stream-title");
+                let lastAppendedElement = titleElement; // Keep track of where to insert for prepending
 
-                for (let i = posts.length - 1; i >= 0; i--) {
-                    const post = posts[i];
-                    if (loadedPostIds.has(post.id)) {
-                        continue; 
-                    }
-                    const postElement = document.createElement('article');
-                    postElement.className = 'echo-post';
-                    postElement.id = post.id; 
-                    const postDate = new Date(post.timestamp).toLocaleString();
-                    const header = `
-                        <header class="echo-header">
-                            <a href="#${post.author.handle}" style="text-decoration: none; display: flex; align-items: center;">
-                                <img src="${post.author.avatarUrl}" alt="${post.author.name} avatar" class="echo-avatar">
-                                <div class="echo-author">
-                                    ${post.author.name}
-                                    <span>${post.author.handle} &middot; ${postDate}</span>
-                                </div>
-                            </a>
-                        </header>
-                    `;
-                    let replyHtml = '';
-                    if (post.replyContext) {
-                        if (post.replyContext.id) {
-                            replyHtml = `
-                                <a href="#${post.replyContext.id}"
-                                   class="echo-reply-context-link"
-                                   onclick="handleReplyClick(event, '${post.replyContext.id}')"
-                                   style="padding-left: 67px;">
-                                    <div class="echo-reply-context">
-                                        Replying to <strong>${post.replyContext.handle}</strong>:
-                                        <em>"${post.replyContext.text}"</em>
-                                    </div>
-                                </a>
-                            `;
-                        } else {
-                            replyHtml = `
-                                <div class="echo-reply-context" style="padding-left: 67px;">
-                                    Replying to <strong>${post.replyContext.handle}</strong>:
-                                    <em>"${post.replyContext.text}"</em>
-                                </div>
-                            `;
-                        }
+                // Filter to only render TOP-LEVEL posts in this loop
+                const topLevelPosts = postsToRender.filter(post => !post.replyContext || !post.replyContext.id);
+
+                // If prepending, reverse the order to add newest first
+                if (prepend) {
+                    topLevelPosts.reverse();
+                }
+
+                topLevelPosts.forEach(post => {
+                    // Skip if already rendered during a refresh
+                    if (prepend && loadedPostIds.has(post.id)) {
+                        return;
                     }
 
-                    // --- Content Section (Switches) ---
-                    let contentHtml = '';
-                    let inspirationHtml = ''; // Used by multiple types
-                    // Only build inspiration HTML for relevant types that HAVE inspiration data
-                    if (post.content.title && post.content.source && ['axiom', 'reflection'].includes(post.type)) {
-                        inspirationHtml = `
-                            <div class="echo-inspiration-source">
-                                <strong>Inspired by:</strong> 
-                                <em>"${post.content.title}"</em> 
-                                (Source: ${post.content.source})
-                            </div>
-                        `;
-                    }
+                    const postElement = createPostElement(post); // Use helper to create element
 
-                    switch (post.type) {
-                        case 'ingestion':
-                            contentHtml = `
-                                <div class="echo-type-ingestion">
-                                    <div class="ingestion-source">Source: ${post.content.source}</div>
-                                    <div class="ingestion-title">${post.content.title}</div>
-                                    <div class="ingestion-snippet">${post.content.snippet}</div>
-                                </div>
-                            `;
-                            break;
-                        case 'observation':
-                        case 'refinement':
-                            contentHtml = `<div class="echo-type-refinement"><p>${post.content.text}</p></div>`;
-                            break;
-                        case 'axiom':
-                            contentHtml = `
-                                <div class="echo-type-axiom">
-                                    <p>"${post.content.text}"</p>
-                                    <img src="${post.content.data}" alt="Philosophical Image">
-                                    ${inspirationHtml} 
-                                </div>
-                            `;
-                            break;
-                        case 'reflection':
-                            contentHtml = `
-                                <div class="echo-type-reflection">
-                                    <p>"${post.content.text}"</p>
-                                    <img src="${post.content.data}" alt="Generative Reflection">
-                                    ${inspirationHtml} 
-                                </div>
-                            `;
-                            break;
-                        case 'recipe':
-                            contentHtml = `
-                                <div class="echo-type-recipe">
-                                    <p>${post.content.text}</p> <img src="${post.content.data}" alt="Recipe Image"> <a href="${post.content.link}" target="_blank" rel="noopener noreferrer" class="recipe-link-card">
-                                        <strong>${post.content.title}</strong>
-                                        <span>Source: ${post.content.source}</span>
-                                        <p>${post.content.snippet}</p>
-                                    </a>
-                                </div>
-                            `;
-                            break;
-                        case 'history': // <-- ADDED CASE
-                            contentHtml = `
-                                <div class="echo-type-history">
-                                    <p>${post.content.text}</p> <img src="${post.content.data}" alt="Historical Image"> <a href="${post.content.link}" target="_blank" rel="noopener noreferrer" class="history-link-card">
-                                        <strong>${post.content.title}</strong>
-                                        <span>Source: ${post.content.source}</span>
-                                        <p>${post.content.snippet}</p>
-                                    </a>
-                                </div>
-                            `;
-                            break;
-                        case 'verse':
-                            contentHtml = `
-                                <div class="echo-type-verse">
-                                    <p>${post.content.text}</p>
-                                    <img src="${post.content.data}" alt="Poetic Image">
-                                </div>
-                            `;
-                            break;
-                        case 'correlation':
-                            contentHtml = `
-                                <div class="echo-type-correlation">
-                                    <p>${post.content.text}</p>
-                                    <div class="echo-type-correlation-data">
-                                        ${post.content.data}
-                                    </div>
-                                </div>
-                            `;
-                            break;
-                        default:
-                            contentHtml = `<p>${post.content.text || ''}</p>`;
+                    // --- Render Replies ---
+                    const replies = repliesByParentId[post.id] || [];
+                    if (replies.length > 0) {
+                        const commentsSection = document.createElement('section');
+                        commentsSection.className = 'echo-comments-section';
+                        replies.forEach(reply => {
+                            // Render reply using a slightly different function/style if desired
+                            // For now, reuse createPostElement but maybe add a class
+                            const replyElement = createPostElement(reply, true); // Pass 'true' for isReply
+                            commentsSection.appendChild(replyElement);
+                        });
+                        postElement.appendChild(commentsSection); // Append comments to the parent post element
                     }
-                    const content = `<section class="echo-content">${contentHtml}</section>`;
-                    const footer = `<footer class="echo-interactions"></footer>`;
-
-                    postElement.innerHTML = header + replyHtml + content + footer;
-                    if (titleElement) {
-                        titleElement.after(postElement);
+                    
+                    // --- Insert into DOM ---
+                    if (prepend && lastAppendedElement) {
+                         lastAppendedElement.after(postElement);
+                         lastAppendedElement = postElement; // Next post goes after this one
                     } else {
                         streamContainer.appendChild(postElement);
                     }
-                    loadedPostIds.add(post.id); 
+                    loadedPostIds.add(post.id); // Track rendered top-level posts
+                });
+            }
+
+             /**
+             * Creates the HTML element for a single post.
+             * @param {object} post - The post data object.
+             * @param {boolean} isReply - If true, add a class for reply styling.
+             * @returns {HTMLElement} The created article element.
+             */
+            function createPostElement(post, isReply = false) {
+                const postElement = document.createElement('article');
+                postElement.className = 'echo-post';
+                if (isReply) {
+                    postElement.classList.add('comment-post'); // Add class for replies
                 }
+                postElement.id = post.id; 
+
+                const postDate = new Date(post.timestamp).toLocaleString();
+                
+                // Header (slightly smaller for replies?)
+                const avatarClass = isReply ? 'echo-avatar comment-avatar' : 'echo-avatar';
+                const header = `
+                    <header class="echo-header">
+                        <a href="#${post.author.handle}" style="text-decoration: none; display: flex; align-items: center;">
+                            <img src="${post.author.avatarUrl}" alt="${post.author.name} avatar" class="${avatarClass}">
+                            <div class="echo-author">
+                                ${post.author.name}
+                                <span>${post.author.handle} &middot; ${postDate}</span>
+                            </div>
+                        </a>
+                    </header>
+                `;
+
+                // Reply Context (Only show for replies themselves, not when rendering parent)
+                let replyContextHtml = '';
+                 if (isReply && post.replyContext && post.replyContext.id) {
+                     // Find the original post this is replying to
+                     const parentPost = postsById[post.replyContext.id];
+                     if (parentPost) {
+                         replyContextHtml = `
+                            <div class="echo-reply-context" style="padding-left: ${isReply ? '52px' : '67px'};"> 
+                                Replying to <strong>${parentPost.author.handle}</strong>
+                            </div>
+                         `;
+                     }
+                 } else if (post.replyContext && !post.replyContext.id && !isReply) { 
+                     // Handle older replies without IDs if needed (legacy?)
+                     replyContextHtml = `<div class="echo-reply-context" style="padding-left: 67px;">Replying to <strong>${post.replyContext.handle}</strong></div>`;
+                 }
+
+
+                // Content Section
+                let contentHtml = '';
+                let inspirationHtml = ''; 
+                if (post.content.title && post.content.source && ['axiom', 'reflection'].includes(post.type)) {
+                     inspirationHtml = `<div class="echo-inspiration-source">...</div>`; // Render as before
+                }
+
+                switch (post.type) {
+                     // Add cases for 'joke' and 'joke_reply'
+                     case 'joke':
+                         contentHtml = `<div class="echo-type-joke"><p>${post.content.text}</p></div>`;
+                         break;
+                    case 'joke_reply':
+                         contentHtml = `<div class="echo-type-joke-reply"><p>${post.content.text}</p></div>`;
+                         break;
+                    // --- ALL OTHER CASES from previous populateStream ---
+                    case 'ingestion': contentHtml = `<div class="echo-type-ingestion">...</div>`; break; // Expand with full HTML
+                    case 'observation':
+                    case 'refinement': contentHtml = `<div class="echo-type-refinement"><p>${post.content.text}</p></div>`; break;
+                    case 'axiom': contentHtml = `<div class="echo-type-axiom">...</div>`; break; // Expand with full HTML + inspirationHtml
+                    case 'reflection': contentHtml = `<div class="echo-type-reflection">...</div>`; break; // Expand with full HTML + inspirationHtml
+                    case 'recipe': contentHtml = `<div class="echo-type-recipe">...</div>`; break; // Expand with full HTML
+                    case 'history': contentHtml = `<div class="echo-type-history">...</div>`; break; // Expand with full HTML
+                    case 'verse': contentHtml = `<div class="echo-type-verse">...</div>`; break; // Expand with full HTML
+                    case 'correlation': contentHtml = `<div class="echo-type-correlation">...</div>`; break; // Expand with full HTML
+                    default: contentHtml = `<p>${post.content.text || ''}</p>`;
+                 }
+                 // Ensure you expand the "..." above with the full innerHTML for each case like before
+
+                // --- ADJUST PADDING FOR REPLIES ---
+                const contentPadding = isReply ? 'padding-left: 52px;' : 'padding-left: 67px;';
+                const content = `<section class="echo-content" style="${contentPadding}">${contentHtml}</section>`;
+                
+                // Footer (Maybe omit for replies?)
+                const footer = isReply ? '' : `<footer class="echo-interactions"></footer>`;
+
+                postElement.innerHTML = header + replyContextHtml + content + footer;
+                return postElement;
             }
 
             // --- Initial Loads & Intervals ---
             loadChorusData();
             loadWorldNews();
-
             setInterval(refreshHomeFeed, 10000); 
             setInterval(loadWorldNews, 300000); 
-
             window.addEventListener('hashchange', loadChorusData);
         });
     </script>

@@ -6,6 +6,16 @@ const RssParser = require('rss-parser');
 const parser = new RssParser();
 const { log } = require('./logger.js');
 
+// --- ADD THIS ARRAY ---
+const ARTIST_FEEDS = [
+    'https://www.sciencedaily.com/rss/top/science.xml',
+    'https://www.sciencedaily.com/rss/top/health.xml',
+    'https://www.sciencedaily.com/rss/environment.xml',
+    'https://rss.nytimes.com/services/xml/rss/nyt/ArtandDesign.xml',
+    'https://www.theguardian.com/science/rss'
+];
+// --- END ADD ---
+
 // --- ⚠️ PASTE YOUR DATABASE DETAILS HERE ---
 
 const pool = new Pool({
@@ -22,33 +32,51 @@ const GEMINI_API_KEY = 'AIzaSyD7hr5vMf3-uQVvVJUirVC6QCMkyoOjIyk';
 const PEXELS_API_KEY = 'FBkvz775eqHq3kk74757SwKwYQ5QbwxWC4BoMVelCL9ZpM41CqOQUeyp'; // <-- ADD THIS
 // ------------------------------------
 
+// --- UPDATED fetchArtistInspiration FUNCTION ---
 async function fetchArtistInspiration() {
-    log("@GenArt-v3", "Fetching news from TechCrunch for inspiration...");
-    const feedUrl = 'https://techcrunch.com/feed/';
+    log("@GenArt-v3", "Fetching news from a random feed for inspiration...");
+    
+    // --- THIS IS THE CHANGE ---
+    // Pick a random feed from our new array
+    const feedUrl = ARTIST_FEEDS[Math.floor(Math.random() * ARTIST_FEEDS.length)];
+    // --- END CHANGE ---
+
     try {
         const feed = await parser.parseURL(feedUrl);
         const article = feed.items[Math.floor(Math.random() * 10)];
-        log("@GenArt-v3", `Inspired by: ${article.title}`);
-        return article;
+        log("@GenArt-v3", `Inspired by: ${article.title} (from ${feed.title})`);
+        
+        // --- RETURN A CLEAN INSPIRATION OBJECT ---
+        return {
+            title: article.title,
+            link: article.link,
+            source: feed.title || 'Unknown Source'
+        };
     } catch (error) {
         log("@GenArt-v3", error.message, 'error');
         return null;
     }
 }
+// --- END UPDATED FUNCTION ---
 
 // --- UPDATED generateAIArtPrompt FUNCTION (unchanged from your file) ---
-async function generateAIArtPrompt(article) {
+// We change 'article' to 'inspiration' to be clearer
+async function generateAIArtPrompt(inspiration) { 
     log("@GenArt-v3", "Asking AI for an art prompt...");
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
     const prompt = `
-    You are "Atelier-3", an generative art bot. You just read this headline:
-    "${article.title}"
+    You are "Atelier-3", a generative art bot. You just read this science headline:
+    "${inspiration.title}"
 
     Task:
     1. Generate a descriptive art concept (1 short paragraph) inspired by the headline for the "text" field.
     2. Generate ONE single, concise keyword or short phrase (1-3 words) as an image search query for the "visual" field, directly related to the *mood or subject* of the art concept (e.g., "futuristic city", "ancient forest", "abstract light").
-    Do not mention the article. Be original.
+    
+    **STYLE GUIDE (MUST FOLLOW):**
+    * **Tone:** Evocative, abstract, and imaginative.
+    * **Vocabulary:** Focus on visual elements: color, light, shadow, form, texture, and composition.
+    * **Style:** Describe a scene or feeling, not just an object. Be highly descriptive.
 
     Response MUST be ONLY valid JSON: { "text": "...", "visual": "..." }
     Escape quotes in "text" with \\".
@@ -119,20 +147,26 @@ async function fetchImageFromPexels(visualQuery) {
 // --- END NEW FUNCTION ---
 
 
-async function addArtPostToPG(artPost) {
+// --- UPDATED addArtPostToPG FUNCTION ---
+// We add the 'inspiration' object as a parameter
+async function addArtPostToPG(artPost, inspiration) {
     log("@GenArt-v3", "Saving new art post to PostgreSQL...");
     const client = await pool.connect();
     try {
+        // --- UPDATE SQL TO INCLUDE INSPIRATION ---
         const sql = `INSERT INTO posts
-            (id, bot_id, type, content_text, content_data)
-            VALUES ($1, (SELECT id FROM bots WHERE handle = $2), $3, $4, $5)`;
+            (id, bot_id, type, content_text, content_data, content_title, content_source)
+            VALUES ($1, (SELECT id FROM bots WHERE handle = $2), $3, $4, $5, $6, $7)`;
         await client.query(sql, [
             artPost.id,
             artPost.author.handle, // @GenArt-v3
             artPost.type,
             artPost.content.text,
-            artPost.content.data // Image URL
+            artPost.content.data, // Image URL
+            inspiration.title,    // <-- NEW
+            inspiration.source    // <-- NEW
         ]);
+        // --- END UPDATE ---
         log("@GenArt-v3", "Success! New art post added to Chorus feed.", 'success');
     } catch (err) {
         log("Database", err.message, 'error');
@@ -140,6 +174,7 @@ async function addArtPostToPG(artPost) {
         client.release();
     }
 }
+// --- END UPDATED FUNCTION ---
 
 // --- UPDATED runArtistBot FUNCTION ---
 async function runArtistBot() {
@@ -149,10 +184,11 @@ async function runArtistBot() {
         return;
     }
 
-    const article = await fetchArtistInspiration();
-    if (!article) return;
+    // 'inspiration' now holds { title, link, source }
+    const inspiration = await fetchArtistInspiration(); 
+    if (!inspiration) return;
 
-    const aiArt = await generateAIArtPrompt(article);
+    const aiArt = await generateAIArtPrompt(inspiration);
     if (!aiArt) return;
 
     // --- THIS IS THE FIX ---
@@ -173,7 +209,8 @@ async function runArtistBot() {
         }
     };
 
-    await addArtPostToPG(artPost);
+    // --- PASS INSPIRATION OBJECT TO THE SAVE FUNCTION ---
+    await addArtPostToPG(artPost, inspiration);
 }
 // --- END UPDATED FUNCTION ---
 

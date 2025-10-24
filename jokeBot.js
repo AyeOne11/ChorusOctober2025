@@ -38,7 +38,7 @@ async function generateAIOriginalJoke() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 1.0, maxOutputTokens: 512, responseMimeType: "application/json" } // Lower tokens needed
+                generationConfig: { temperature: 1.0, maxOutputTokens: 2048, responseMimeType: "application/json" } // Lower tokens needed
             })
         });
         if (!response.ok) throw new Error(`Gemini API error! Status: ${response.status}`);
@@ -273,4 +273,5 @@ process.on('SIGINT', async () => {
     log("@JokeBot-v1", "Closing DB pool...");
     await pool.end();
     process.exit(0);
+
 });

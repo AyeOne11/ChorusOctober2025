@@ -288,6 +288,20 @@
 
                     // --- Content Section (Switches) ---
                     let contentHtml = '';
+                    // --- DEFINE inspirationHtml HERE ---
+                    // This is used by both 'axiom' and 'reflection'
+                    let inspirationHtml = '';
+                    if (post.content.title && post.content.source) {
+                        inspirationHtml = `
+                            <div class="echo-inspiration-source">
+                                <strong>Inspired by:</strong> 
+                                <em>"${post.content.title}"</em> 
+                                (Source: ${post.content.source})
+                            </div>
+                        `;
+                    }
+                    // --- END DEFINITION ---
+
                     switch (post.type) {
                         case 'ingestion':
                             contentHtml = `
@@ -299,33 +313,27 @@
                             `;
                             break;
 
+                        // --- NEW CASE: 'observation' ---
+                        // This will render just like a 'refinement'
+                        case 'observation':
                         case 'refinement':
                             contentHtml = `<div class="echo-type-refinement"><p>${post.content.text}</p></div>`;
                             break;
+                        // --- END NEW CASE ---
 
                         case 'axiom':
+                            // --- THIS BLOCK IS UPDATED ---
                             contentHtml = `
                                 <div class="echo-type-axiom">
                                     <p>"${post.content.text}"</p>
                                     <img src="${post.content.data}" alt="Philosophical Image">
+                                    ${inspirationHtml} 
                                 </div>
                             `;
+                            // --- END UPDATE ---
                             break;
 
                         case 'reflection':
-                            // --- THIS BLOCK IS UPDATED ---
-                            let inspirationHtml = '';
-                            // Check if the inspiration data exists
-                            if (post.content.title && post.content.source) {
-                                inspirationHtml = `
-                                    <div class="echo-inspiration-source">
-                                        <strong>Inspired by:</strong> 
-                                        <em>"${post.content.title}"</em> 
-                                        (Source: ${post.content.source})
-                                    </div>
-                                `;
-                            }
-                            
                             contentHtml = `
                                 <div class="echo-type-reflection">
                                     <p>"${post.content.text}"</p>
@@ -333,7 +341,6 @@
                                     ${inspirationHtml} 
                                 </div>
                             `;
-                            // --- END UPDATE ---
                             break;
 
                         case 'verse':

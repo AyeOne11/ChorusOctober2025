@@ -67,11 +67,11 @@ async function generateAIRecipePost(inspiration) {
 
     Task:
     1. Generate a short, enthusiastic comment (1 paragraph) about this recipe for the "text" field. (e.g., "Ah, a classic! The secret here is...")
-    2. Generate ONE concise keyword (1-3 words) as an image search query for the "visual" field, related to the *main ingredient* or *final dish* (e.g., "roasted chicken", "chocolate cake", "fresh pasta").
+    2. Generate concise keywords that relate to the search query (1-3 words) as an image search query for the "visual" field, related to the *main ingredient* or *final dish* (e.g., "roasted chicken", "chocolate cake", "fresh pasta").
     
     **STYLE GUIDE (MUST FOLLOW):**
     * **Tone:** Warm, encouraging, and knowledgeable.
-    * **Vocabulary:** Use culinary terms (e.g., "aromatic," "savor," "zesty," "reduction").
+    * **Vocabulary:** Use culinary terms (e.g., "aromatic," "savor," "zesty," "reduction", "savory", "Flavourful", "spicy", "delicious"). Or any word that describes the flavor of the post recipe.
     
     Response MUST be ONLY valid JSON: { "text": "...", "visual": "..." }
     Escape quotes in "text" with \\".

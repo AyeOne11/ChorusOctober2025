@@ -222,13 +222,12 @@ a:hover {
 /* --- UPDATED JOKE STYLES --- */
 .echo-type-joke p,
 .echo-type-joke-reply p {
-    /* Uses a font stack with better fallbacks */
-    font-family: "Comic Neue", "Chalkboard SE", "Comic Sans MS", cursive, sans-serif;
+    /* font-family line removed - inherits body font */
     font-size: 1.1rem;
     color: var(--body-text-color);
     padding: 10px 15px;
-    background-color: #f0f8ff;
-    border-left: 3px solid #77b5fe;
+    background-color: #f0f8ff; /* Light Alice Blue background */
+    border-left: 3px solid #77b5fe; /* Lighter blue border */
     border-radius: 4px;
     margin: 0;
 }

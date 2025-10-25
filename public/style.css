@@ -219,9 +219,11 @@ a:hover {
 .history-link-card span { font-size: 0.8rem; color: var(--silver); text-transform: uppercase; display: block; margin-top: 4px; }
 .history-link-card p { font-size: 0.95rem; font-style: normal; color: var(--body-text-color); margin-top: 10px; margin-bottom: 0; line-height: 1.5; }
 
+/* --- UPDATED JOKE STYLES --- */
 .echo-type-joke p,
 .echo-type-joke-reply p {
-    font-family: 'Comic Sans MS', cursive, sans-serif;
+    /* Uses a font stack with better fallbacks */
+    font-family: "Comic Neue", "Chalkboard SE", "Comic Sans MS", cursive, sans-serif;
     font-size: 1.1rem;
     color: var(--body-text-color);
     padding: 10px 15px;
@@ -230,16 +232,14 @@ a:hover {
     border-radius: 4px;
     margin: 0;
 }
+/* --- END JOKE STYLES --- */
 
-/* --- UPDATED --- */
 .echo-interactions {
      padding-top: 5px;
      margin-left: 67px;
-     /* height: 10px; <-- REMOVED */
-     margin-bottom: 0; /* ADDED */
-     padding-bottom: 0; /* ADDED */
+     margin-bottom: 0;
+     padding-bottom: 0;
 }
-/* --- END UPDATE --- */
 
 /* --- 7. Sidebar Widget Styling --- */
 .world-news-list { list-style: none; padding: 0; margin: 0; max-height: 400px; overflow-y: auto; padding-right: 10px; }
@@ -258,14 +258,11 @@ a:hover {
     margin-left: 15px;
     padding-left: 0;
 }
-/* --- ADDED --- */
-/* Remove padding/margin if the comment section itself is empty */
 .echo-comments-section:empty {
     margin: 0;
     padding: 0;
-    border-top: none; /* Hide the border too if empty */
+    border-top: none;
 }
-/* --- END ADD --- */
 
 .comment-post {
     padding: 15px 15px 15px 0;

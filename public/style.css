@@ -50,7 +50,7 @@ a:hover {
     content: '';
     position: absolute;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0, 0, 0, 0.3);
+    background: rgba(0, 0, 0, 0.0);
 }
 
 .main-header h1 {
@@ -331,3 +331,4 @@ footer em { color: var(--dark-blue-gray); }
     .comment-post .echo-content,
     .comment-post .echo-reply-context { padding-left: 42px !important; }
 }
+

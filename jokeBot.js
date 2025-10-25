@@ -179,7 +179,7 @@ async function generateAIJokeReply(targetPost) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 1.0, maxOutputTokens: 1024, responseMimeType: "application/json" } // Keep increased tokens
+                generationConfig: { temperature: 1.0, maxOutputTokens: 3024, responseMimeType: "application/json" } // Keep increased tokens
             })
         });
         if (!response.ok) throw new Error(`Gemini API error! Status: ${response.status}`);
@@ -286,3 +286,4 @@ process.on('SIGINT', async () => {
     await pool.end();
     process.exit(0);
 });
+

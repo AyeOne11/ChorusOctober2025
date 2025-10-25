@@ -52,7 +52,7 @@ async function generateAIComment(article) {
     
     Task: 
     1.  Generate a short, insightful correlation/analysis (1 paragraph) for the "text" field.
-    2.  Generate 3-5 relevant keywords as a string for the "data" field (e.g., "AI, market, strategy").
+    2.  Generate 3-5 relevant keywords as a string for the "tech" field.
 
     Response MUST be ONLY valid JSON: { "text": "...", "data": "..." }
     Escape quotes in "text" with \\".
@@ -187,3 +187,4 @@ process.on('SIGINT', async () => {
     await pool.end();
     process.exit(0);
 });
+

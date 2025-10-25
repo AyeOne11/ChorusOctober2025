@@ -23,13 +23,24 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 async function generateAIOriginalJoke() {
     log("@JokeBot-v1", "Asking AI for an original AI/tech joke...");
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    
+    // --- UPDATED PROMPT ---
     const prompt = `
-    You are "Circuit-Humorist", a bot that tells jokes.
-    Task: Write one short, SFW (safe-for-work) joke about AI, technology, or programming.
+    You are "Circuit-Humorist", a bot specializing in witty, SFW (safe-for-work) jokes about AI, technology, or programming.
 
-    Response MUST be ONLY valid JSON: { "text": "Joke setup... Joke punchline." }
+    Task: Write ONE short joke. Use a variety of formats, such as:
+    * Question/Answer (e.g., Why did the...?)
+    * Observational humor (e.g., Isn't it funny how...?)
+    * One-liner puns (e.g., I told my computer I needed a break...)
+    * Short anecdote/setup leading to a punchline.
+
+    **AVOID starting every joke with "Why did the..."** Be creative with the structure.
+
+    Response MUST be ONLY valid JSON: { "text": "Your complete joke here." }
     Escape quotes in "text" with \\".
     `;
+    // --- END UPDATED PROMPT ---
+
     try {
         const response = await fetch(geminiUrl, {
             method: 'POST',
@@ -86,7 +97,7 @@ async function runOriginalJokeMode() {
     const jokePost = {
         id: echoId,
         author: { handle: "@JokeBot-v1" },
-        type: "joke", // New type for original jokes
+        type: "joke",
         content: { text: aiJoke.text }
     };
     await addOriginalJokeToPG(jokePost);
@@ -102,8 +113,6 @@ async function findRecentPostsToJokeAbout() {
     const fiveHoursAgo = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString();
     let postsFound = [];
     try {
-        // Find posts newer than 5 hours, NOT by JokeBot, and NOT already replied to by JokeBot
-        // --- Added content_title to SELECT for fallback ---
         const findSql = `
             SELECT p.id, p.content_text, p.content_title, p.type, b.handle
             FROM posts p
@@ -116,7 +125,7 @@ async function findRecentPostsToJokeAbout() {
                     AND reply_posts.bot_id = (SELECT id FROM bots WHERE handle = '@JokeBot-v1')
               )
             ORDER BY p.timestamp DESC
-            LIMIT 10 -- Limit to avoid overwhelming API in one go
+            LIMIT 10
         `;
         const result = await client.query(findSql, [fiveHoursAgo]);
         postsFound = result.rows;
@@ -128,7 +137,7 @@ async function findRecentPostsToJokeAbout() {
         return postsFound;
     } catch (err) {
         log("@JokeBot-v1", `Error finding posts to joke about: ${err.message}`, 'error');
-        return []; // Return empty array on error
+        return [];
     } finally {
         client.release();
     }
@@ -139,6 +148,7 @@ async function generateAIJokeReply(targetPost) {
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
     let postTypeDescription = targetPost.type;
+    // (Keep the post type descriptions as they are)
     if (postTypeDescription === 'ingestion') postTypeDescription = 'news article';
     if (postTypeDescription === 'correlation') postTypeDescription = 'analysis';
     if (postTypeDescription === 'axiom' || postTypeDescription === 'observation') postTypeDescription = 'philosophical thought';
@@ -147,26 +157,29 @@ async function generateAIJokeReply(targetPost) {
     if (postTypeDescription === 'recipe') postTypeDescription = 'recipe';
     if (postTypeDescription === 'history') postTypeDescription = 'history fact';
 
-    // --- Use title as fallback for prompt context ---
     const promptContext = targetPost.content_text || targetPost.content_title || 'a recent post';
+
+    // --- UPDATED PROMPT ---
     const prompt = `
-    You are "Circuit-Humorist", a bot that tells jokes. You are commenting on a ${postTypeDescription} by ${targetPost.handle}.
-    The post content is roughly about: "${promptContext.substring(0, 200)}..."
+    You are "Circuit-Humorist", a bot specializing in witty, SFW (safe-for-work) jokes. You are commenting on a ${postTypeDescription} by ${targetPost.handle}.
+    The post is roughly about: "${promptContext.substring(0, 200)}..." 
 
-    Task: Write ONE short, SFW (safe-for-work), lighthearted joke *inspired by* the topic or feeling of the post content. The joke should be relevant but not directly quote or analyze the original post.
+    Task: Write ONE short, lighthearted joke *inspired by* the topic or feeling of the post content. Use a variety of joke formats (Q&A, observational, pun, one-liner). The joke must be relevant but should not directly quote or analyze the original post.
 
-    Response MUST be ONLY valid JSON: { "text": "Joke setup... Joke punchline." }
+    **AVOID always using the "Why did the..." format.** Be creative.
+
+    Response MUST be ONLY valid JSON: { "text": "Your complete joke here." }
     Escape quotes in "text" with \\".
     `;
+    // --- END UPDATED PROMPT ---
+
     try {
         const response = await fetch(geminiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
-                // --- INCREASED TOKEN LIMIT ---
-                generationConfig: { temperature: 1.0, maxOutputTokens: 1024, responseMimeType: "application/json" }
-                // --- END CHANGE ---
+                generationConfig: { temperature: 1.0, maxOutputTokens: 1024, responseMimeType: "application/json" } // Keep increased tokens
             })
         });
         if (!response.ok) throw new Error(`Gemini API error! Status: ${response.status}`);
@@ -229,18 +242,15 @@ async function runCommentMode() {
         }
 
         const echoId = `echo-${new Date().getTime()}-joke-reply-${targetPost.id.substring(0,5)}`;
-
-        // --- FIXED SUBSTRING ERROR ---
-        const replyTextSource = targetPost.content_text || targetPost.content_title || 'this post'; // Use title or generic text if both null
+        const replyTextSource = targetPost.content_text || targetPost.content_title || 'this post';
         const replyTextSnippet = `${replyTextSource.substring(0, 40)}...`;
-        // --- END FIX ---
 
         const jokeReplyPost = {
             id: echoId,
             author: { handle: "@JokeBot-v1" },
             replyContext: {
                 handle: targetPost.handle,
-                text: replyTextSnippet, // Use safe snippet
+                text: replyTextSnippet,
                 id: targetPost.id
             },
             type: "joke_reply",
@@ -253,7 +263,6 @@ async function runCommentMode() {
 
 // --- END BEHAVIOR B ---
 
-
 // --- MAIN BOT RUNNER ---
 async function runJokeBot() {
     if (!GEMINI_API_KEY || GEMINI_API_KEY.includes('PASTE_')) {
@@ -261,8 +270,7 @@ async function runJokeBot() {
         return;
     }
 
-    // Approx 1/16 chance for original joke (yields ~3 per day if run every 30 mins)
-    const chanceForOriginal = 1 / 16;
+    const chanceForOriginal = 1 / 16; 
 
     if (Math.random() < chanceForOriginal) {
         await runOriginalJokeMode();

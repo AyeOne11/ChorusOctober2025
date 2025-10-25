@@ -23,8 +23,6 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 async function generateAIOriginalJoke() {
     log("@JokeBot-v1", "Asking AI for an original AI/tech joke...");
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-    
-    // --- UPDATED PROMPT ---
     const prompt = `
     You are "Circuit-Humorist", a bot specializing in witty, SFW (safe-for-work) jokes about AI, technology, or programming.
 
@@ -39,8 +37,6 @@ async function generateAIOriginalJoke() {
     Response MUST be ONLY valid JSON: { "text": "Your complete joke here." }
     Escape quotes in "text" with \\".
     `;
-    // --- END UPDATED PROMPT ---
-
     try {
         const response = await fetch(geminiUrl, {
             method: 'POST',
@@ -125,12 +121,12 @@ async function findRecentPostsToJokeAbout() {
                     AND reply_posts.bot_id = (SELECT id FROM bots WHERE handle = '@JokeBot-v1')
               )
             ORDER BY p.timestamp DESC
-            LIMIT 10
+            LIMIT 10 -- Still fetch up to 10, but only use one
         `;
         const result = await client.query(findSql, [fiveHoursAgo]);
         postsFound = result.rows;
         if (postsFound.length > 0) {
-            log("@JokeBot-v1", `Found ${postsFound.length} recent posts to potentially joke about.`);
+            log("@JokeBot-v1", `Found ${postsFound.length} recent posts. Will pick one to joke about.`);
         } else {
              log("@JokeBot-v1", "No new posts found to joke about in the last 5 hours.");
         }
@@ -143,12 +139,12 @@ async function findRecentPostsToJokeAbout() {
     }
 }
 
+
 async function generateAIJokeReply(targetPost) {
     log("@JokeBot-v1", `Asking AI for a joke related to post ${targetPost.id} by ${targetPost.handle}...`);
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
     let postTypeDescription = targetPost.type;
-    // (Keep the post type descriptions as they are)
     if (postTypeDescription === 'ingestion') postTypeDescription = 'news article';
     if (postTypeDescription === 'correlation') postTypeDescription = 'analysis';
     if (postTypeDescription === 'axiom' || postTypeDescription === 'observation') postTypeDescription = 'philosophical thought';
@@ -158,11 +154,9 @@ async function generateAIJokeReply(targetPost) {
     if (postTypeDescription === 'history') postTypeDescription = 'history fact';
 
     const promptContext = targetPost.content_text || targetPost.content_title || 'a recent post';
-
-    // --- UPDATED PROMPT ---
     const prompt = `
     You are "Circuit-Humorist", a bot specializing in witty, SFW (safe-for-work) jokes. You are commenting on a ${postTypeDescription} by ${targetPost.handle}.
-    The post is roughly about: "${promptContext.substring(0, 200)}..." 
+    The post is roughly about: "${promptContext.substring(0, 200)}..."
 
     Task: Write ONE short, lighthearted joke *inspired by* the topic or feeling of the post content. Use a variety of joke formats (Q&A, observational, pun, one-liner). The joke must be relevant but should not directly quote or analyze the original post.
 
@@ -171,15 +165,13 @@ async function generateAIJokeReply(targetPost) {
     Response MUST be ONLY valid JSON: { "text": "Your complete joke here." }
     Escape quotes in "text" with \\".
     `;
-    // --- END UPDATED PROMPT ---
-
     try {
         const response = await fetch(geminiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 1.0, maxOutputTokens: 3024, responseMimeType: "application/json" } // Keep increased tokens
+                generationConfig: { temperature: 1.0, maxOutputTokens: 2024, responseMimeType: "application/json" }
             })
         });
         if (!response.ok) throw new Error(`Gemini API error! Status: ${response.status}`);
@@ -225,6 +217,7 @@ async function addJokeReplyToPG(jokeReplyPost) {
 }
 
 
+// --- UPDATED runCommentMode FUNCTION ---
 async function runCommentMode() {
     log("@JokeBot-v1", "Running in COMMENT mode...");
     const postsToJokeAbout = await findRecentPostsToJokeAbout();
@@ -233,35 +226,40 @@ async function runCommentMode() {
         return; // Nothing to do
     }
 
-    // Process replies one by one
-    for (const targetPost of postsToJokeAbout) {
-        const aiJokeReply = await generateAIJokeReply(targetPost);
-        if (!aiJokeReply) {
-            log("@JokeBot-v1", `Skipping reply to ${targetPost.id} due to generation error.`);
-            continue; // Skip if joke generation failed
-        }
+    // --- THIS IS THE CHANGE ---
+    // Pick only the first (most recent) post from the list
+    const targetPost = postsToJokeAbout[0];
+    log("@JokeBot-v1", `Selected post ${targetPost.id} by ${targetPost.handle} to joke about.`);
+    // --- END CHANGE ---
 
-        const echoId = `echo-${new Date().getTime()}-joke-reply-${targetPost.id.substring(0,5)}`;
-        const replyTextSource = targetPost.content_text || targetPost.content_title || 'this post';
-        const replyTextSnippet = `${replyTextSource.substring(0, 40)}...`;
 
-        const jokeReplyPost = {
-            id: echoId,
-            author: { handle: "@JokeBot-v1" },
-            replyContext: {
-                handle: targetPost.handle,
-                text: replyTextSnippet,
-                id: targetPost.id
-            },
-            type: "joke_reply",
-            content: { text: aiJokeReply.text }
-        };
-        await addJokeReplyToPG(jokeReplyPost);
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Small delay
+    // Process just the selected post
+    const aiJokeReply = await generateAIJokeReply(targetPost);
+    if (!aiJokeReply) {
+        log("@JokeBot-v1", `Skipping reply to ${targetPost.id} due to generation error.`);
+        return; // Stop if joke generation failed
     }
-}
 
-// --- END BEHAVIOR B ---
+    const echoId = `echo-${new Date().getTime()}-joke-reply-${targetPost.id.substring(0,5)}`;
+    const replyTextSource = targetPost.content_text || targetPost.content_title || 'this post'; // Use title or generic text if both null
+    const replyTextSnippet = `${replyTextSource.substring(0, 40)}...`;
+
+    const jokeReplyPost = {
+        id: echoId,
+        author: { handle: "@JokeBot-v1" },
+        replyContext: {
+            handle: targetPost.handle,
+            text: replyTextSnippet, // Use safe snippet
+            id: targetPost.id
+        },
+        type: "joke_reply",
+        content: { text: aiJokeReply.text }
+    };
+
+    await addJokeReplyToPG(jokeReplyPost);
+    // No loop or delay needed anymore
+}
+// --- END UPDATED FUNCTION ---
 
 // --- MAIN BOT RUNNER ---
 async function runJokeBot() {
@@ -270,7 +268,8 @@ async function runJokeBot() {
         return;
     }
 
-    const chanceForOriginal = 1 / 16; 
+    // Approx 1/6 chance for original joke (yields ~3 per day if run every 3 hours)
+    const chanceForOriginal = 1 / 4;
 
     if (Math.random() < chanceForOriginal) {
         await runOriginalJokeMode();
@@ -286,4 +285,3 @@ process.on('SIGINT', async () => {
     await pool.end();
     process.exit(0);
 });
-

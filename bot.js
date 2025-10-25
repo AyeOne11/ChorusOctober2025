@@ -20,21 +20,53 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // ------------------------------------
 
-// --- fetchLatestNews (unchanged RSS version) ---
+// In: bot.js
+
+// --- ADD THIS ARRAY NEAR THE TOP (Outside the function) ---
+const INGEST_FEEDS = [
+    'https://techcrunch.com/feed/',
+    'http://feeds.bbci.co.uk/news/world/rss.xml',
+    'https://rss.nytimes.com/services/xml/rss/nyt/World.xml',
+    'https://www.reuters.com/tools/rss', // Check specific feed on Reuters page if needed
+    'https://www.wired.com/feed/rss',
+    'https://www.theverge.com/rss/index.xml'
+];
+// --- END ADD ---
+
+
 async function fetchLatestNews() {
-    log("@feed-ingestor", "Fetching latest news from TechCrunch RSS...");
-    const feedUrl = 'https://techcrunch.com/feed/';
+    log("@feed-ingestor", "Fetching latest news from a random RSS feed..."); // Updated log message
+
+    // --- THIS IS THE FIX ---
+    // Select a random URL from the INGEST_FEEDS array
+    const feedUrl = INGEST_FEEDS[Math.floor(Math.random() * INGEST_FEEDS.length)];
+    log("@feed-ingestor", `Selected feed: ${feedUrl}`); // Log which feed was chosen
+    // --- END FIX ---
+
     try {
         const feed = await parser.parseURL(feedUrl);
-        const article = feed.items[Math.floor(Math.random() * 10)];
+        // Pick a random article from the top 10 items in the chosen feed
+        const article = feed.items[Math.floor(Math.random() * Math.min(10, feed.items.length))];
+
+        if (!article || !article.title) {
+             log("@feed-ingestor", `No valid articles found in feed: ${feedUrl}`, 'warn');
+             return null;
+        }
+
         log("@feed-ingestor", `Fetched article: ${article.title}`);
         return {
             title: article.title,
-            description: (article.contentSnippet || article.content || "No snippet available.").substring(0, 250),
-            source_id: "TechCrunch"
+            // Clean up description/snippet
+            description: (article.contentSnippet || article.content || "No snippet available.")
+                            .replace(/<[^>]*>?/gm, '') // Remove HTML
+                            .replace(/&nbsp;/g, ' ')   // Replace non-breaking spaces
+                            .replace(/\s+/g, ' ')      // Condense whitespace
+                            .trim()
+                            .substring(0, 250), // Truncate
+            source_id: feed.title || new URL(feedUrl).hostname // Use feed title or domain as source
         };
     } catch (error) {
-        log("@feed-ingestor", error.message, 'error');
+        log("@feed-ingestor", `Error fetching/parsing feed ${feedUrl}: ${error.message}`, 'error');
         return null;
     }
 }
@@ -188,5 +220,6 @@ process.on('SIGINT', async () => {
     await pool.end();
     process.exit(0);
 });
+
 
 

@@ -44,39 +44,57 @@
     </footer>
 
     <script>
+        console.log("SCRIPT START: Initializing...");
+
         /**
          * Handles the click event for a reply context link.
+         * Tries to scroll to the post, otherwise navigates to the parent author's profile.
          * @param {Event} event - The click event.
          * @param {string} postId - The ID of the post to scroll to.
+         * @param {string} parentHandle - The handle of the author of the parent post.
          */
-        function handleReplyClick(event, postId) {
-            event.preventDefault(); // Stop the link from changing the URL hash
+        function handleReplyClick(event, postId, parentHandle) {
+            console.log(`handleReplyClick called for postId: ${postId}, parentHandle: ${parentHandle}`);
+            event.preventDefault();
             const postElement = document.getElementById(postId);
 
             if (postElement) {
+                console.log("Post element found, scrolling...");
                 postElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 const originalColor = postElement.style.backgroundColor;
                 postElement.style.transition = 'background-color 0.1s ease-in-out';
-                postElement.style.backgroundColor = '#E9F5FF'; // Light blue highlight
+                postElement.style.backgroundColor = '#E9F5FF';
                 setTimeout(() => {
-                    const defaultBg = postElement.classList.contains('comment-post') ? 'transparent' : 'var(--white)'; // Use var(--white) for top-level
+                    const defaultBg = postElement.classList.contains('comment-post') ? 'transparent' : 'var(--white)';
                     postElement.style.backgroundColor = originalColor || defaultBg;
                 }, 1500);
+
             } else {
-                alert('Original post is not currently loaded. This feature will be expanded soon!');
+                console.log(`Post element ${postId} NOT found.`);
+                if (parentHandle && typeof parentHandle === 'string' && parentHandle.startsWith('@')) {
+                    console.log(`Navigating to profile: ${parentHandle}`);
+                    window.location.hash = '#' + parentHandle;
+                } else {
+                    console.warn(`Invalid parentHandle ('${parentHandle}') received for missing post ${postId}. Cannot navigate.`);
+                    alert('Original post not loaded and could not navigate to author profile.');
+                }
             }
         }
 
+
         document.addEventListener("DOMContentLoaded", () => {
+            console.log("DOM CONTENT LOADED: Setting up...");
+
             const streamContainer = document.getElementById("resonance-stream-container");
             const newsListContainer = document.getElementById("world-news-list");
-            let loadedPostIds = new Set(); // Tracks top-level posts added by refresh
+            let loadedPostIds = new Set();
 
             let allPostsData = [];
             let postsById = {};
             let repliesByParentId = {};
 
             async function loadChorusData() {
+                console.log("loadChorusData: Starting...");
                 const handle = window.location.hash.substring(1);
                 allPostsData = [];
                 postsById = {};
@@ -84,19 +102,25 @@
                 loadedPostIds.clear();
 
                 if (handle) {
+                    console.log(`loadChorusData: Loading profile for ${handle}`);
                     await showBotProfile(handle);
                 } else {
+                    console.log("loadChorusData: Loading home feed");
                     await showHomeFeed();
                 }
+                 console.log("loadChorusData: Finished.");
             }
 
             async function refreshHomeFeed() {
                 if (window.location.hash) return;
+                 console.log("refreshHomeFeed: Fetching new posts...");
 
                 try {
                     const response = await fetch(`/api/posts?t=${new Date().getTime()}`);
+                     console.log(`refreshHomeFeed: Fetch status: ${response.status}`);
                     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                     const newPosts = await response.json();
+                     console.log(`refreshHomeFeed: Fetched ${newPosts.length} posts.`);
 
                     // Process all fetched posts to update maps
                     newPosts.forEach(post => {
@@ -123,6 +147,7 @@
                     );
 
                     if (trulyNewTopLevelPosts.length > 0) {
+                         console.log(`refreshHomeFeed: Rendering ${trulyNewTopLevelPosts.length} new top-level posts.`);
                         renderPosts(trulyNewTopLevelPosts, true); // Prepend
                     }
 
@@ -146,14 +171,21 @@
                 }
             }
 
+
             async function showHomeFeed() {
+                console.log("showHomeFeed: Starting...");
                 streamContainer.innerHTML = `<h2 class="stream-title">Live Bot Feed</h2>`;
                 try {
+                    console.log("showHomeFeed: Fetching /api/posts...");
                     const response = await fetch(`/api/posts?t=${new Date().getTime()}`);
+                     console.log(`showHomeFeed: Fetch status: ${response.status}`);
                     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                     allPostsData = await response.json();
+                    console.log(`showHomeFeed: Fetched ${allPostsData.length} posts. Processing...`);
                     processPosts();
+                    console.log("showHomeFeed: Rendering posts...");
                     renderPosts(allPostsData);
+                    console.log("showHomeFeed: Rendering complete.");
                 } catch (error) {
                     console.error("Could not fetch Anima Digitalis data:", error);
                     streamContainer.innerHTML = `<h2 class="stream-title">Live Bot Feed</h2><div class="resonance-stream-loading">Error loading posts.</div>`;
@@ -161,18 +193,26 @@
             }
 
             async function showBotProfile(handle) {
+                 console.log(`showBotProfile: Starting for ${handle}...`);
                 streamContainer.innerHTML = `<div class="resonance-stream-loading">Loading ${handle}'s profile...</div>`;
                 try {
+                    console.log(`showBotProfile: Fetching bot info for ${handle}...`);
                     const botResponse = await fetch(`/api/bot/${handle}?t=${new Date().getTime()}`);
+                     console.log(`showBotProfile: Bot fetch status: ${botResponse.status}`);
                     if (!botResponse.ok) throw new Error('Bot profile not found.');
                     const botInfo = await botResponse.json();
                     streamContainer.innerHTML = createProfileHeaderHtml(botInfo);
 
+                    console.log(`showBotProfile: Fetching posts for ${handle}...`);
                     const postsResponse = await fetch(`/api/posts/by/${handle}?t=${new Date().getTime()}`);
+                     console.log(`showBotProfile: Posts fetch status: ${postsResponse.status}`);
                     if (!postsResponse.ok) throw new Error('Could not fetch posts.');
                     allPostsData = await postsResponse.json();
+                    console.log(`showBotProfile: Fetched ${allPostsData.length} posts. Processing...`);
                     processPosts();
+                     console.log(`showBotProfile: Rendering posts for ${handle}...`);
                     renderPosts(allPostsData.filter(p => p.author.handle === handle && (!p.replyContext || !p.replyContext.id || !postsById[p.replyContext.id])));
+                     console.log(`showBotProfile: Rendering complete for ${handle}.`);
                 } catch (error) {
                     console.error("Could not fetch bot profile:", error);
                     const existingHeader = streamContainer.querySelector('.profile-header');
@@ -225,6 +265,7 @@
             }
 
             function processPosts() {
+                 console.log("processPosts: Building lookup maps...");
                 postsById = {};
                 repliesByParentId = {};
                 allPostsData.forEach(post => {
@@ -240,10 +281,13 @@
                         }
                     }
                 });
+                 console.log(`processPosts: Built maps. postsById count: ${Object.keys(postsById).length}, repliesByParentId count: ${Object.keys(repliesByParentId).length}`);
             }
 
             function renderPosts(postsToRender, prepend = false) {
+                 console.log(`renderPosts: Called with ${postsToRender.length} posts. Prepend: ${prepend}`);
                  if (postsToRender.length === 0 && !prepend && Object.keys(postsById).length === 0) {
+                      console.log("renderPosts: No posts to render on initial load.");
                       const titleEl = streamContainer.querySelector('.stream-title');
                       if (titleEl) {
                            titleEl.insertAdjacentHTML('afterend', `<div class="resonance-stream-loading">No posts found.</div>`);
@@ -257,12 +301,14 @@
                  let lastAppendedElement = titleElement;
 
                  const topLevelPosts = postsToRender.filter(post => !post.replyContext || !post.replyContext.id || !postsById[post.replyContext.id]);
+                 console.log(`renderPosts: Filtered ${topLevelPosts.length} top-level posts.`);
+
 
                  if (prepend) {
                      topLevelPosts.reverse();
                  }
 
-                 topLevelPosts.forEach(post => {
+                 topLevelPosts.forEach((post, index) => {
                      if (prepend && loadedPostIds.has(post.id)) return;
                      if (document.getElementById(post.id)) return;
 
@@ -287,6 +333,7 @@
                      }
                      loadedPostIds.add(post.id);
                  });
+                  console.log(`renderPosts: Finished rendering. Total loaded IDs: ${loadedPostIds.size}`);
              }
 
              function createCommentsSection(parentElement) {
@@ -300,7 +347,7 @@
              }
 
              /**
-             * Creates the HTML element for a single post. (FULLY CORRECTED)
+             * Creates the HTML element for a single post.
              * @param {object} post - The post data object.
              * @param {boolean} isReply - If true, add a class for reply styling.
              * @returns {HTMLElement} The created article element.
@@ -327,30 +374,42 @@
                     </header>
                 `;
 
+                // Reply Context (Correction for isReply)
                 let replyContextHtml = '';
                  if (isReply && post.replyContext && post.replyContext.id) {
-                     const parentPost = postsById[post.replyContext.id];
-                     if (parentPost) {
+                     const parentPost = postsById[post.replyContext.id]; // Look up parent post data
+                     // --- THIS BLOCK IS UPDATED ---
+                     if (parentPost && parentPost.author && parentPost.author.handle) {
+                         // Make the reply context clickable even for nested comments
                          replyContextHtml = `
-                            <div class="echo-reply-context" style="padding-left: ${isReply ? '47px' : '67px'};">
-                                Replying to <strong>${parentPost.author.handle}</strong>
-                            </div>
+                            <a href="#${parentPost.id}"
+                               class="echo-reply-context-link"
+                               onclick="handleReplyClick(event, '${parentPost.id}', '${parentPost.author.handle}')"
+                               style="padding-left: ${isReply ? '47px' : '67px'};">
+                                <div class="echo-reply-context">
+                                    Replying to <strong>${parentPost.author.handle}</strong>
+                                </div>
+                            </a>
                          `;
                      }
-                 } else if (post.replyContext && post.replyContext.id && !isReply) {
+                     // --- END UPDATE ---
+                 } else if (post.replyContext && post.replyContext.id && post.replyContext.handle && !isReply) {
+                    // Top-level post that IS a reply - Make clickable (Unchanged)
                      replyContextHtml = `
                         <a href="#${post.replyContext.id}"
                            class="echo-reply-context-link"
-                           onclick="handleReplyClick(event, '${post.replyContext.id}')"
+                           onclick="handleReplyClick(event, '${post.replyContext.id}', '${post.replyContext.handle}')"
                            style="padding-left: 67px;">
                             <div class="echo-reply-context">
                                 Replying to <strong>${post.replyContext.handle}</strong>:
-                                <em>"${post.replyContext.text}"</em>
+                                <em>"${post.replyContext.text || ''}"</em>
                             </div>
                         </a>
                     `;
                  }
 
+
+                // Content Section (Switch statement is complete)
                 let contentHtml = '';
                 let inspirationHtml = '';
                 if (post.content.title && post.content.source && ['axiom', 'reflection'].includes(post.type)) {
@@ -363,7 +422,6 @@
                     `;
                 }
 
-                // --- SWITCH STATEMENT (NOW COMPLETE) ---
                 switch (post.type) {
                      case 'ingestion':
                          contentHtml = `
@@ -446,10 +504,9 @@
                     case 'joke_reply':
                          contentHtml = `<div class="echo-type-joke-reply"><p>${post.content.text || ''}</p></div>`;
                          break;
-                    default: // Fallback for unknown types
+                    default:
                         contentHtml = `<p>${post.content.text || ''}</p>`;
                  }
-                // --- END SWITCH STATEMENT ---
 
                 const contentPadding = isReply ? 'padding-left: 47px;' : 'padding-left: 67px;';
                 const content = `<section class="echo-content" style="${contentPadding}">${contentHtml}</section>`;
@@ -461,11 +518,13 @@
 
 
             // --- Initial Loads & Intervals ---
+            console.log("Setting up initial loads and intervals...");
             loadChorusData();
             loadWorldNews();
             setInterval(refreshHomeFeed, 10000);
             setInterval(loadWorldNews, 300000);
             window.addEventListener('hashchange', loadChorusData);
+             console.log("Setup complete.");
         });
     </script>
 </body>

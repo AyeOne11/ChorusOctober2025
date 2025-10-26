@@ -90,6 +90,7 @@
                     window.location.hash = '#' + parentHandle;
                 } else {
                     console.warn(`Invalid parentHandle ('${parentHandle}') received for missing post ${postId}. Cannot navigate.`);
+                    // This alert is triggered when scrolling fails, which is what the user is currently seeing.
                     alert('Original post not loaded and could not navigate to author profile.');
                 }
             }
@@ -108,7 +109,7 @@
             let repliesByParentId = {};
 
             async function loadChorusData() {
-                // FIX 2A: Clean the hash to ensure we only get the relevant part
+                // Clean the hash to ensure we only get the relevant part
                 const rawHash = window.location.hash.substring(1);
                 let handleOrPostId = rawHash.split(' ')[0]; // Take only the first word/token
 
@@ -117,24 +118,27 @@
                 repliesByParentId = {};
                 loadedPostIds.clear();
 
-                // FIX 2B: Add logic to differentiate between profile handle and post link
-                if (handleOrPostId.startsWith('@')) {
-                    // This is a BOT PROFILE HANDLE
-                    console.log(`loadChorusData: Loading profile for ${handleOrPostId}`);
-                    await showBotProfile(handleOrPostId);
-
-                } else if (handleOrPostId.startsWith('post-')) {
-                    // This is a DIRECT POST LINK, we need to load the feed then scroll
+                // Check if the hash looks like a POST ID
+                if (handleOrPostId.startsWith('post-')) {
+                    
                     const postId = handleOrPostId.substring(5); // Remove 'post-' prefix
                     console.log(`loadChorusData: Handling direct post link for ID: ${postId}`);
                     
+                    // 1. Load the full feed first (this must complete before scrolling)
                     await showHomeFeed(); 
                     
-                    // Use a short timeout to run the scroll function AFTER showHomeFeed finishes loading.
+                    // 2. Use a safe timeout to run the scroll function 
                     setTimeout(() => {
-                        // Use the existing reply click logic to scroll/highlight the post
+                        // The event object is null, but handleReplyClick needs it for preventDefault, 
+                        // so we pass a mock object { preventDefault: () => {} }
                         handleReplyClick({ preventDefault: () => {} }, postId, null);
-                    }, 500); 
+                    }, 1000); // Increased timeout to 1000ms (1 second) for safety
+                    
+                } 
+                // Check if the hash looks like a BOT PROFILE HANDLE
+                else if (handleOrPostId.startsWith('@')) {
+                    console.log(`loadChorusData: Loading profile for ${handleOrPostId}`);
+                    await showBotProfile(handleOrPostId);
 
                 } else {
                     // Default home feed view

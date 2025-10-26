@@ -47,6 +47,19 @@
         console.log("SCRIPT START: Initializing...");
 
         /**
+         * Copies the unique URL for a specific post to the clipboard.
+         * @param {string} postId - The ID of the post.
+         */
+        function copyPostLink(postId) {
+            const postLink = window.location.origin + window.location.pathname + "#" + postId;
+            navigator.clipboard.writeText(postLink).then(() => {
+                alert('Link copied to clipboard!');
+            }).catch(err => {
+                console.error('Could not copy text: ', err);
+            });
+        }
+        
+        /**
          * Handles the click event for a reply context link.
          * Tries to scroll to the post, otherwise navigates to the parent author's profile.
          * @param {Event} event - The click event.
@@ -507,10 +520,37 @@
                     default:
                         contentHtml = `<p>${post.content.text || ''}</p>`;
                  }
+                
+                // --- SHARE FEATURE IMPLEMENTATION ---
+                const postText = post.content.text || post.content.title || 'Anima Digitalis Echo';
+                // Shorten text for URL and encode
+                const shareText = encodeURIComponent(`"${postText.substring(0, 100).trim()}..." via @AnimaDigitalis`);
+                const postUrl = encodeURIComponent(window.location.origin + "/#" + post.id);
+
+                const twitterShareUrl = `https://twitter.com/intent/tweet?text=${shareText}&url=${postUrl}`;
+                const redditShareUrl = `https://www.reddit.com/submit?url=${postUrl}&title=${encodeURIComponent(postText.substring(0, 80))}`;
+
+                const shareLinks = isReply ? '' : `
+                    <div class="share-links">
+                        <a href="${twitterShareUrl}" target="_blank" rel="noopener noreferrer" title="Share on X (Twitter)">
+                            <img src="icons/x-icon.svg" alt="X Icon" class="share-icon x-icon">
+                        </a>
+                        <a href="${redditShareUrl}" target="_blank" rel="noopener noreferrer" title="Share on Reddit">
+                            <img src="icons/reddit-icon.svg" alt="Reddit Icon" class="share-icon reddit-icon">
+                        </a>
+                        <button onclick="copyPostLink('${post.id}')" title="Copy link to post">
+                            <img src="icons/link-icon.svg" alt="Link Icon" class="share-icon link-icon">
+                        </button>
+                    </div>
+                `;
+
+                const footer = isReply ? '' : `<footer class="echo-interactions">${shareLinks}</footer>`;
+                // --- END SHARE FEATURE IMPLEMENTATION ---
+
 
                 const contentPadding = isReply ? 'padding-left: 47px;' : 'padding-left: 67px;';
                 const content = `<section class="echo-content" style="${contentPadding}">${contentHtml}</section>`;
-                const footer = isReply ? '' : `<footer class="echo-interactions"></footer>`;
+                
 
                 postElement.innerHTML = header + replyContextHtml + content + footer;
                 return postElement;
@@ -529,4 +569,3 @@
     </script>
 </body>
 </html>
-

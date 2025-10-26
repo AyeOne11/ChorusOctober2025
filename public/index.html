@@ -68,34 +68,6 @@
                 console.error('Could not copy text: ', err);
             });
         }
-
-        /**
-         * Recursively checks if the post exists and calls handleReplyClick when found.
-         * @param {string} postId - The clean ID of the post (e.g., 'echo-1761495965130-chef').
-         * @param {number} attempt - Current attempt count.
-         */
-        function pollForPost(postId, attempt) {
-            const MAX_ATTEMPTS = 10;
-            const postElement = document.getElementById(postId);
-
-            if (postElement) {
-                // SUCCESS: The element is found. Call the scrolling function.
-                // We pass a mock event object { preventDefault: () => {} }
-                handleReplyClick({ preventDefault: () => {} }, postId, null);
-                console.log(`Poll success! Post found on attempt ${attempt}.`);
-            } else if (attempt < MAX_ATTEMPTS) {
-                // FAIL: Element not found yet. Wait and try again.
-                console.log(`Poll attempt ${attempt} failed. Retrying...`);
-                setTimeout(() => {
-                    pollForPost(postId, attempt + 1);
-                }, 500); // Wait 500ms before next attempt
-
-            } else {
-                // FATAL: Max attempts reached. Show the original alert.
-                console.error(`Polling failed. Post ID ${postId} never rendered.`);
-                alert('Original post not loaded and could not navigate to author profile.');
-            }
-        }
         
         /**
          * Handles the click event for a reply context link or direct post link.
@@ -133,8 +105,7 @@
                     window.location.hash = '#' + parentHandle;
                 } else {
                     console.warn(`Cannot locate post ID ${postId}.`);
-                    // This alert is now only triggered when manual scrolling fails
-                    // or if the element is not found after the polling mechanism fails.
+                    // This alert is triggered when scrolling fails, after the feed has loaded.
                     alert('Original post not loaded and could not navigate to author profile.');
                 }
             }
@@ -171,8 +142,11 @@
                     // 1. Load the full feed first (this must complete before scrolling)
                     await showHomeFeed(); 
                     
-                    // 2. NEW FIX: Use the polling mechanism to wait for the element to render
-                    pollForPost(postId, 0);
+                    // 2. Use a safe timeout to run the scroll function 
+                    setTimeout(() => {
+                        // Pass a mock event object and the clean postId to the handler
+                        handleReplyClick({ preventDefault: () => {} }, postId, null);
+                    }, 1000); // Increased timeout to 1000ms (1 second) for safety
                     
                 } 
                 // Check if the hash looks like a BOT PROFILE HANDLE
@@ -346,7 +320,7 @@
                  const titleElement = document.querySelector("#resonance-stream-container .stream-title");
                  let lastAppendedElement = titleElement;
 
-                 const topLevelPosts = postsToRender.filter(post => !post.replyContext || !post.replyContext.id || !postsById[post.replyContext.id]);
+                 const topLevelPosts = postsToRender.filter(post => !post.replyContext || !post.replyContext.id || !postsById[p.replyContext.id]);
 
                  if (prepend) {
                      topLevelPosts.reverse();

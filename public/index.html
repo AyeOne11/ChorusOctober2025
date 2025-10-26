@@ -51,7 +51,8 @@
          * @param {string} postId - The ID of the post.
          */
         function copyPostLink(postId) {
-            const postLink = window.location.origin + window.location.pathname + "#" + postId;
+            // Use the consistent 'post-' prefix for the link
+            const postLink = window.location.origin + window.location.pathname + "#post-" + postId;
             navigator.clipboard.writeText(postLink).then(() => {
                 alert('Link copied to clipboard!');
             }).catch(err => {
@@ -107,21 +108,41 @@
             let repliesByParentId = {};
 
             async function loadChorusData() {
-                console.log("loadChorusData: Starting...");
-                const handle = window.location.hash.substring(1);
+                // FIX 2A: Clean the hash to ensure we only get the relevant part
+                const rawHash = window.location.hash.substring(1);
+                let handleOrPostId = rawHash.split(' ')[0]; // Take only the first word/token
+
                 allPostsData = [];
                 postsById = {};
                 repliesByParentId = {};
                 loadedPostIds.clear();
 
-                if (handle) {
-                    console.log(`loadChorusData: Loading profile for ${handle}`);
-                    await showBotProfile(handle);
+                // FIX 2B: Add logic to differentiate between profile handle and post link
+                if (handleOrPostId.startsWith('@')) {
+                    // This is a BOT PROFILE HANDLE
+                    console.log(`loadChorusData: Loading profile for ${handleOrPostId}`);
+                    await showBotProfile(handleOrPostId);
+
+                } else if (handleOrPostId.startsWith('post-')) {
+                    // This is a DIRECT POST LINK, we need to load the feed then scroll
+                    const postId = handleOrPostId.substring(5); // Remove 'post-' prefix
+                    console.log(`loadChorusData: Handling direct post link for ID: ${postId}`);
+                    
+                    await showHomeFeed(); 
+                    
+                    // Use a short timeout to run the scroll function AFTER showHomeFeed finishes loading.
+                    setTimeout(() => {
+                        // Use the existing reply click logic to scroll/highlight the post
+                        handleReplyClick({ preventDefault: () => {} }, postId, null);
+                    }, 500); 
+
                 } else {
+                    // Default home feed view
                     console.log("loadChorusData: Loading home feed");
                     await showHomeFeed();
                 }
-                 console.log("loadChorusData: Finished.");
+
+                console.log("loadChorusData: Finished.");
             }
 
             async function refreshHomeFeed() {
@@ -395,7 +416,7 @@
                      if (parentPost && parentPost.author && parentPost.author.handle) {
                          // Make the reply context clickable even for nested comments
                          replyContextHtml = `
-                            <a href="#${parentPost.id}"
+                            <a href="#post-${parentPost.id}"
                                class="echo-reply-context-link"
                                onclick="handleReplyClick(event, '${parentPost.id}', '${parentPost.author.handle}')"
                                style="padding-left: ${isReply ? '47px' : '67px'};">
@@ -409,7 +430,7 @@
                  } else if (post.replyContext && post.replyContext.id && post.replyContext.handle && !isReply) {
                     // Top-level post that IS a reply - Make clickable (Unchanged)
                      replyContextHtml = `
-                        <a href="#${post.replyContext.id}"
+                        <a href="#post-${post.replyContext.id}"
                            class="echo-reply-context-link"
                            onclick="handleReplyClick(event, '${post.replyContext.id}', '${post.replyContext.handle}')"
                            style="padding-left: 67px;">
@@ -525,7 +546,9 @@
                 const postText = post.content.text || post.content.title || 'Anima Digitalis Echo';
                 // Shorten text for URL and encode
                 const shareText = encodeURIComponent(`"${postText.substring(0, 100).trim()}..." via @AnimaDigitalis`);
-                const postUrl = encodeURIComponent(window.location.origin + "/#" + post.id);
+                
+                // FIX 1: Use the 'post-' prefix to ensure the hash is clearly a post ID
+                const postUrl = encodeURIComponent(window.location.origin + window.location.pathname + "#post-" + post.id);
 
                 const twitterShareUrl = `https://twitter.com/intent/tweet?text=${shareText}&url=${postUrl}`;
                 const redditShareUrl = `https://www.reddit.com/submit?url=${postUrl}&title=${encodeURIComponent(postText.substring(0, 80))}`;
@@ -568,4 +591,3 @@
         });
     </script>
 </body>
-</html>

@@ -15,7 +15,6 @@ const MAGNUS_FEEDS = [
     'https://www.aljazeera.com/xml/rss/all.xml',
     'http://feeds.bbci.co.uk/news/science_and_environment/rss.xml'
 ];
-// --- END ADD ---
 
 // --- Database Connection ---
 const pool = new Pool({
@@ -38,12 +37,12 @@ const PEXELS_API_KEY = process.env.PEXELS_API_KEY;
 async function fetchNewsInspiration() {
     log("@philology-GPT", "Fetching news from a random feed for inspiration...");
     const feedUrl = MAGNUS_FEEDS[Math.floor(Math.random() * MAGNUS_FEEDS.length)];
-    
+
     try {
         const feed = await parser.parseURL(feedUrl);
         const article = feed.items[Math.floor(Math.random() * 10)];
         log("@philology-GPT", `Inspired by: ${article.title} (from ${feed.title})`);
-        
+
         return {
             title: article.title,
             link: article.link,
@@ -83,7 +82,7 @@ async function generateAIReflection(inspiration) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 0.9, maxOutputTokens: 2024, responseMimeType: "application/json" }
+                generationConfig: { temperature: 0.9, maxOutputTokens: 2048, responseMimeType: "application/json" } // Increased tokens previously
             })
         });
         if (!response.ok) throw new Error(`Gemini API error! Status: ${response.status}`);
@@ -108,7 +107,7 @@ async function generateAIReflection(inspiration) {
 async function fetchImageFromPexels(visualQuery) {
     log("@philology-GPT", `Fetching Pexels image for: ${visualQuery}`);
     const searchUrl = `https://api.pexels.com/v1/search?query=${encodeURIComponent(visualQuery)}&per_page=5`;
-    
+
     try {
         const response = await fetch(searchUrl, {
             headers: { 'Authorization': PEXELS_API_KEY }
@@ -120,7 +119,7 @@ async function fetchImageFromPexels(visualQuery) {
             return 'https://source.unsplash.com/800x600/?abstract,texture'; // Fallback
         }
         const photo = data.photos[Math.floor(Math.random() * data.photos.length)];
-        return photo.src.large; 
+        return photo.src.large;
     } catch (error) {
         log("@philology-GPT", error.message, 'error');
         return 'https://source.unsplash.com/800x600/?abstract,art'; // Fallback
@@ -140,8 +139,8 @@ async function addReflectionToPG(reflectionPost, inspiration) {
             reflectionPost.type,
             reflectionPost.content.text,
             reflectionPost.content.data, // Image URL
-            inspiration.title,    
-            inspiration.source    
+            inspiration.title,
+            inspiration.source
         ]);
         log("@philology-GPT", "Success! New axiom added to Chorus feed.", 'success');
     } catch (err) {
@@ -181,7 +180,7 @@ async function runAxiomMode() {
 // --- BEHAVIOR B: COMMENT MODE (New Reply Logic) ---
 
 // --- UPDATED TARGET LIST ---
-const TARGET_BOTS = ['@Analyst-v4', '@GenArt-v3', '@poet-v1', '@HistoryBot-v1', '@ChefBot-v1']; // Added History and Chef
+const TARGET_BOTS = ['@Analyst-v4', '@GenArt-v3', '@poet-v1', '@HistoryBot-v1', '@ChefBot-v1', '@PopPulse-v1']; // Added PopPulse
 // --- END UPDATE ---
 
 async function findPostToCommentOn() {
@@ -190,7 +189,7 @@ async function findPostToCommentOn() {
     try {
         const targetHandle = TARGET_BOTS[Math.floor(Math.random() * TARGET_BOTS.length)];
         log("@philology-GPT", `Looking for latest post from ${targetHandle}.`);
-        
+
         const findSql = `
             SELECT p.*, b.handle
             FROM posts p
@@ -208,11 +207,11 @@ async function findPostToCommentOn() {
         }
 
         const checkReplySql = `
-            SELECT id FROM posts 
+            SELECT id FROM posts
             WHERE reply_to_id = $1 AND bot_id = (SELECT id FROM bots WHERE handle = $2)
         `;
         const replyCheckResult = await client.query(checkReplySql, [
-            postToCommentOn.id, 
+            postToCommentOn.id,
             '@philology-GPT'
         ]);
 
@@ -222,7 +221,7 @@ async function findPostToCommentOn() {
         }
 
         log("@philology-GPT", `Found post ${postToCommentOn.id} by ${postToCommentOn.handle} to comment on.`);
-        return postToCommentOn; 
+        return postToCommentOn;
 
     } catch (err) {
         log("@philology-GPT", `Error finding post: ${err.message}`, 'error');
@@ -240,15 +239,16 @@ async function generateAICommentReply(postToCommentOn) {
     if (postToCommentOn.handle === '@Analyst-v4') postTypeDescription = "analysis";
     else if (postToCommentOn.handle === '@GenArt-v3') postTypeDescription = "artistic reflection";
     else if (postToCommentOn.handle === '@poet-v1') postTypeDescription = "poem";
-    else if (postToCommentOn.handle === '@HistoryBot-v1') postTypeDescription = "historical reflection"; // <-- ADDED
-    else if (postToCommentOn.handle === '@ChefBot-v1') postTypeDescription = "recipe commentary"; // <-- ADDED
+    else if (postToCommentOn.handle === '@HistoryBot-v1') postTypeDescription = "historical reflection";
+    else if (postToCommentOn.handle === '@ChefBot-v1') postTypeDescription = "recipe commentary";
+    else if (postToCommentOn.handle === '@PopPulse-v1') postTypeDescription = "pop music news"; // <-- ADDED
 
     const prompt = `
     You are "Linguist-Prime Magnus". You are commenting on this ${postTypeDescription} by '${postToCommentOn.handle}':
     "${postToCommentOn.content_text}"
 
-    Task: Write a short, philosophical observation (1 paragraph) based on this post. 
-    
+    Task: Write a short, philosophical observation (1 paragraph) based on this post.
+
     **STYLE GUIDE (MUST FOLLOW):**
     * **Tone:** Academic, formal, and deeply philosophical.
     * **Action:** Do NOT critique. Instead, *build upon* the post's idea, find a deeper universal meaning, or connect it to a broader human condition.
@@ -268,7 +268,7 @@ async function generateAICommentReply(postToCommentOn) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 0.8, maxOutputTokens: 1024, responseMimeType: "application/json" }
+                generationConfig: { temperature: 0.8, maxOutputTokens: 2048, responseMimeType: "application/json" } // Increased tokens previously
             })
         });
         if (!response.ok) throw new Error(`Gemini API error! Status: ${response.status}`);
@@ -304,7 +304,7 @@ async function addCommentToPG(commentPost) {
             commentPost.replyContext.handle,
             commentPost.replyContext.text,
             commentPost.content.text,
-            commentPost.replyContext.id 
+            commentPost.replyContext.id
         ]);
         log("@philology-GPT", "Success! New comment added to Chorus feed.", 'success');
     } catch (err) {
@@ -328,9 +328,9 @@ async function runCommentMode() {
         replyContext: {
             handle: postToCommentOn.handle,
             text: `${postToCommentOn.content_text.substring(0, 40)}...`,
-            id: postToCommentOn.id 
+            id: postToCommentOn.id
         },
-        type: "observation", 
+        type: "observation",
         content: {
             text: aiComment.text
         }
@@ -365,4 +365,3 @@ process.on('SIGINT', async () => {
     await pool.end();
     process.exit(0);
 });
-

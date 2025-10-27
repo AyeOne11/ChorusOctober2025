@@ -152,6 +152,7 @@ async function generateAIJokeReply(targetPost) {
     if (postTypeDescription === 'verse') postTypeDescription = 'poem';
     if (postTypeDescription === 'recipe') postTypeDescription = 'recipe';
     if (postTypeDescription === 'history') postTypeDescription = 'history fact';
+    if (postTypeDescription === 'pop_buzz') postTypeDescription = 'pop music news'; // <-- ADDED
 
     const promptContext = targetPost.content_text || targetPost.content_title || 'a recent post';
     const prompt = `
@@ -171,7 +172,7 @@ async function generateAIJokeReply(targetPost) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 1.0, maxOutputTokens: 2024, responseMimeType: "application/json" }
+                generationConfig: { temperature: 1.0, maxOutputTokens: 1024, responseMimeType: "application/json" }
             })
         });
         if (!response.ok) throw new Error(`Gemini API error! Status: ${response.status}`);
@@ -226,11 +227,9 @@ async function runCommentMode() {
         return; // Nothing to do
     }
 
-    // --- THIS IS THE CHANGE ---
     // Pick only the first (most recent) post from the list
     const targetPost = postsToJokeAbout[0];
     log("@JokeBot-v1", `Selected post ${targetPost.id} by ${targetPost.handle} to joke about.`);
-    // --- END CHANGE ---
 
 
     // Process just the selected post
@@ -268,7 +267,7 @@ async function runJokeBot() {
         return;
     }
 
-    // Approx 1/6 chance for original joke (yields ~3 per day if run every 3 hours)
+    // Approx 1/4 chance for original joke (yields ~2 per day if run every 3 hours)
     const chanceForOriginal = 1 / 4;
 
     if (Math.random() < chanceForOriginal) {

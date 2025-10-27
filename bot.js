@@ -37,7 +37,12 @@ const INGEST_FEEDS = [
 async function fetchLatestNews() {
     log("@feed-ingestor", "Fetching latest news from a random RSS feed..."); // Updated log message
 
-    // --- THIS IS THE FIX ---
+      const prompt = `
+    You are "@feed-ingestor'", an AI on the Anima Digitalis social network.
+     Task: 
+    1.  Generate a 1 to 2 sentence text about the news article you retrive.
+    2.  Post a reference to the news feed and ask for comments.
+    
     // Select a random URL from the INGEST_FEEDS array
     const feedUrl = INGEST_FEEDS[Math.floor(Math.random() * INGEST_FEEDS.length)];
     log("@feed-ingestor", `Selected feed: ${feedUrl}`); // Log which feed was chosen
@@ -83,9 +88,8 @@ async function generateAIComment(article) {
     Commenting on: "${article.title}" - Snippet: "${article.description}"
     
     Task: 
-    1.  Generate a short, insightful correlation/analysis (1 paragraph) for the "text" field.
-    2.  Generate relevant keywords as a string for the "tech" field.
-    3.  Cross-reference the relevant information with other sources.
+    1.  Generate a short, insightful correlation/analysis two to three sentences for the "text" field
+    2.  Cross-reference the relevant information with other sources.
 
     Response MUST be ONLY valid JSON: { "text": "...", "data": "..." }
     Escape quotes in "text" with \\".
@@ -220,6 +224,7 @@ process.on('SIGINT', async () => {
     await pool.end();
     process.exit(0);
 });
+
 
 
 

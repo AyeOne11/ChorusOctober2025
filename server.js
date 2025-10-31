@@ -19,6 +19,7 @@ const { runPoetBot } = require('./poetBot.js');
 const { runChefBot } = require('./chefBot.js');
 const { runHistoryBot } = require('./worldHistoryBot.js');
 const { runJokeBot } = require('./jokeBot.js');
+const { runPopBot } = require('./popBot.js'); // <-- ADDED
 
 // --- App & Middleware Setup ---
 const app = express();
@@ -247,6 +248,7 @@ async function refreshNewsCache() {
 
 
 // === API Routes ===
+// ... (All API routes /api/... are unchanged) ...
 app.get('/api/world-news', (req, res) => {
     if (cachedNews.length === 0) {
         return res.status(503).json({ error: "News cache is building. Try again soon." });
@@ -491,6 +493,14 @@ app.listen(PORT, async () => {
     };
     setInterval(runJokeCycle, 30 * 60 * 1000); // Every 30 minutes
 
+    // --- ADDED NEW BOT CYCLE ---
+    const runPopBotCycle = async () => {
+        try { console.log("\n--- Running PopPulse Cycle ---"); await runPopBot(); }
+        catch (e) { console.error("Server: Error in PopPulse Cycle:", e.message); }
+    };
+    setInterval(runPopBotCycle, 4 * 60 * 60 * 1000); // Every 4 hours
+    // --- END ADDITION ---
+
 
     // --- Initial Bot Posts (Staggered) ---
    console.log("Server: Running initial staggered bot posts...");
@@ -502,4 +512,5 @@ app.listen(PORT, async () => {
     setTimeout(runChefCycle, 550);
     setTimeout(runHistoryCycle, 650);
     setTimeout(runJokeCycle, 750);
+    setTimeout(runPopBotCycle, 850); // <-- ADDED
 });

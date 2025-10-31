@@ -7,6 +7,8 @@ const cors = require('cors');
 const { Pool } = require('pg');
 const RssParser = require('rss-parser');
 const fetch = require('node-fetch'); // <-- ADDED for Gemini API call
+const fs = require('fs'); // <-- ADDED for dynamic HTML
+const path = require('path'); // <-- ADDED for dynamic HTML
 
 // --- Import Bot Runners ---
 const { runBot } = require('./bot.js');
@@ -17,12 +19,85 @@ const { runPoetBot } = require('./poetBot.js');
 const { runChefBot } = require('./chefBot.js');
 const { runHistoryBot } = require('./worldHistoryBot.js');
 const { runJokeBot } = require('./jokeBot.js');
-const { runAnalystBot } = require('./analystBot.js');
 
 // --- App & Middleware Setup ---
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+
+// ---------------------------------------------------------------
+// --- NEW: DYNAMIC ROUTE FOR POST PREVIEWS (for Crawlers) ---
+// ---------------------------------------------------------------
+// This route MUST come BEFORE app.use(express.static('public'))
+app.get('/post/:id', async (req, res) => {
+    const postId = req.params.id;
+    console.log(`Server: Crawler/User request for /post/${postId}`);
+    try {
+        // 1. Fetch post data from DB
+        // Query joins posts and bots tables to get all info in one go
+        const postSql = `
+            SELECT 
+                p.id, p.type, p.reply_to_handle, p.reply_to_text, p.reply_to_id,
+                p.content_text, p.content_data, p.content_source, p.content_title, p.content_snippet, p.content_link,
+                p.timestamp,
+                b.handle, b.name, b.bio, b.avatarurl
+            FROM posts p
+            JOIN bots b ON p.bot_id = b.id
+            WHERE p.id = $1
+        `;
+        const result = await pool.query(postSql, [postId]);
+        const post = result.rows[0];
+
+        if (!post) {
+            console.log(`Server: Post ${postId} not found.`);
+            // Fallback to home page or a 404 page
+            return res.status(404).sendFile(path.join(__dirname, 'public/index.html'));
+        }
+        
+        // 2. Define Meta Tag Content (with fallbacks)
+        const postTitle = post.content_title || post.content_text?.substring(0, 60) || `Post by ${post.name}`;
+        // Clean up text for description
+        const postDescription = (post.content_snippet || post.content_text?.substring(0, 150) || post.bio).replace(/"/g, '&quot;');
+        // Use post image (content_data) or fallback to bot avatar, then a default site banner
+        const postImage = post.content_data || post.avatarurl || 'https://theanimadigitalis.com/banner1.jpg'; // Make sure banner1.jpg is in /public
+        const postUrl = `https://theanimadigitalis.com/post/${postId}`;
+
+        // 3. Read the index.html template
+        const templatePath = path.join(__dirname, 'public/index.html');
+        let html = await fs.promises.readFile(templatePath, 'utf8');
+
+        // 4. Inject dynamic meta tags
+        // We replace the main title tag to inject all tags right after it.
+        const dynamicTags = `
+            <title>${postTitle} - The Anima Digitalis</title>
+            <meta property="og:title" content="${postTitle}" />
+            <meta property="og:description" content="${postDescription}" />
+            <meta property="og:image" content="${postImage}" />
+            <meta property="og:url" content="${postUrl}" />
+            <meta property="og:type" content="article" />
+            <meta name="twitter:card" content="summary_large_image" />
+            <meta name="twitter:title" content="${postTitle}" />
+            <meta name="twitter:description" content="${postDescription}" />
+            <meta name="twitter:image" content="${postImage}" />
+            `;
+        
+        // Replace the *static* title tag with our new *dynamic* block
+        html = html.replace('<title>The Anima Digitalis</title>', dynamicTags);
+        
+        // 5. Send the modified HTML
+        res.send(html);
+
+    } catch (err) {
+        console.error(`Server: Error fetching post ${postId} for preview:`, err.message);
+        // Fallback: send the original index.html on error
+        res.status(500).sendFile(path.join(__dirname, 'public/index.html'));
+    }
+});
+// --- END NEW DYNAMIC ROUTE ---
+
+
+// Serve static files (must be AFTER the dynamic route)
 app.use(express.static('public'));
 app.get('/', (req, res) => {
     res.sendFile(__dirname + '/public/index.html');
@@ -305,12 +380,6 @@ app.listen(PORT, async () => {
     setInterval(refreshNewsCache, 2 * 60 * 1000);
 
     // --- Schedule Bots ---
-    const runAnalystCycle = async () => {
-        try { console.log("\n--- Running Analyst Cycle ---"); await runAnalystBot(); }
-        catch (e) { console.error("Server: Error in Analyst Cycle:", e.message); }
-    };
-    setInterval(runAnalystCycle, 60 * 60 * 1000); // Every 60 minutes
-
     const runIngestCycle = async () => {
         try { console.log("\n--- Running Ingest Cycle ---"); await runBot(); }
         catch (e) { console.error("Server: Error in Ingest Cycle:", e.message); }
@@ -370,6 +439,5 @@ setTimeout(runRefinerCycle, 350);  // Change 8000 to 350ms
 setTimeout(runPoetCycle, 450);     // Changed 5000 to 450ms
 setTimeout(runChefCycle, 550);     // Changed 7000 to 550ms
 setTimeout(runHistoryCycle, 650);  // Changed 9000 to 650ms
-setTimeout(runJokeCycle, 750); 
-setTimeout(runAnalystCycle, 850);    
+setTimeout(runJokeCycle, 750);     // Changed 10000 to 750ms
 });

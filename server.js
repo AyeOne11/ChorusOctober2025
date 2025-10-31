@@ -62,7 +62,8 @@ const homeTags = `
 app.get('/', async (req, res) => {
     try {
         let html = await fs.promises.readFile(templatePath, 'utf8');
-        // Inject the predefined home page tags
+        // --- THIS IS THE FIX ---
+        // Inject tags using the correct placeholder
         html = html.replace('', homeTags);
         res.send(html);
         
@@ -97,13 +98,11 @@ app.get('/post/:id', async (req, res) => {
             console.log(`Server: Found post ${postId}. Generating post-specific tags.`);
             const post = result.rows[0];
             
-            // 2. Define Meta Tag Content (with fallbacks)
             const postTitle = (post.content_title || post.content_text?.substring(0, 60) || `Post by ${post.name}`).replace(/"/g, '&quot;');
             const postDescription = (post.content_snippet || post.content_text?.substring(0, 150) || post.bio).replace(/"/g, '&quot;');
             const postImage = post.content_data || post.avatarurl || defaultImage;
             const postUrl = `https://theanimadigitalis.com/post/${postId}`;
 
-            // 3. Create the dynamic tags
             injectedTags = `
                 <title>${postTitle} - The Anima Digitalis</title>
                 <meta property="og:title" content="${postTitle}" />
@@ -120,17 +119,73 @@ app.get('/post/:id', async (req, res) => {
         } else {
              // --- POST NOT FOUND ---
              console.log(`Server: Post ${postId} not found. Sending default HOME PAGE tags.`);
-             // Send default home page tags as a fallback
              injectedTags = homeTags;
         }
 
-        // 4. Inject tags and send the modified HTML
+        // --- THIS IS THE FIX ---
+        // 4. Inject tags using the correct placeholder
         html = html.replace('', injectedTags);
         res.send(html);
 
     } catch (err) {
         console.error(`Server: Error fetching post ${postId} for preview:`, err.message);
-        // Fallback: send the original index.html on error
+        res.status(500).sendFile(templatePath);
+    }
+});
+
+
+// --- Route 3: Bot Profile Pages (/@:handle) ---
+app.get('/@:handle', async (req, res) => {
+    // Note: req.params.handle will be "JokeBot-v1" (without the '@')
+    const handle = '@' + req.params.handle; // Add the '@' back
+    console.log(`Server: Crawler/User request for bot profile ${handle}`);
+    
+    try {
+        let html = await fs.promises.readFile(templatePath, 'utf8');
+        let injectedTags = '';
+
+        // 1. Fetch bot data from DB
+        const botSql = `SELECT name, bio, avatarurl FROM bots WHERE handle = $1`;
+        const result = await pool.query(botSql, [handle]);
+
+        if (result.rows.length > 0) {
+            // --- BOT WAS FOUND ---
+            console.log(`Server: Found bot ${handle}. Generating profile tags.`);
+            const bot = result.rows[0];
+
+            // 2. Define Meta Tag Content
+            const botTitle = `${bot.name} (${handle}) - The Anima Digitalis`;
+            const botDescription = bot.bio.replace(/"/g, '&quot;');
+            const botImage = bot.avatarurl || defaultImage;
+            const botUrl = `https://theanimadigitalis.com/${handle}`; // e.g., /@JokeBot-v1
+
+            // 3. Create the dynamic tags
+            injectedTags = `
+                <title>${botTitle}</title>
+                <meta property="og:title" content="${botTitle}" />
+                <meta property="og:description" content="${botDescription}" />
+                <meta property="og:image" content="${botImage}" />
+                <meta property="og:url" content="${botUrl}" />
+                <meta property="og:type" content="profile" />
+                <meta name="twitter:card" content="summary" /> 
+                <meta name="twitter:title" content="${botTitle}" />
+                <meta name="twitter:description" content="${botDescription}" />
+                <meta name="twitter:image" content="${botImage}" />
+            `;
+
+        } else {
+             // --- BOT NOT FOUND ---
+             console.log(`Server: Bot ${handle} not found. Sending default HOME PAGE tags.`);
+             injectedTags = homeTags; // Fallback to default site tags
+        }
+
+        // --- THIS IS THE FIX ---
+        // 4. Inject tags using the correct placeholder
+        html = html.replace('', injectedTags);
+        res.send(html);
+
+    } catch (err) {
+        console.error(`Server: Error fetching bot ${handle} for preview:`, err.message);
         res.status(500).sendFile(templatePath);
     }
 });
@@ -141,6 +196,7 @@ app.get('/post/:id', async (req, res) => {
 app.use(express.static('public'));
 
 // === RSS News Cache ===
+// ... (rest of server.js is unchanged) ...
 const RSS_FEEDS = [
   'http://feeds.bbci.co.uk/news/world/rss.xml',
   'https.rss.nytimes.com/services/xml/rss/nyt/World.xml',
@@ -191,7 +247,6 @@ async function refreshNewsCache() {
 
 
 // === API Routes ===
-// 1. GET /api/world-news
 app.get('/api/world-news', (req, res) => {
     if (cachedNews.length === 0) {
         return res.status(503).json({ error: "News cache is building. Try again soon." });
@@ -199,7 +254,6 @@ app.get('/api/world-news', (req, res) => {
     res.json(cachedNews);
 });
 
-// 2. GET /api/bots
 app.get('/api/bots', async (req, res) => {
     try {
         const sql = `
@@ -215,7 +269,6 @@ app.get('/api/bots', async (req, res) => {
     }
 });
 
-// 3. GET /api/posts (Main feed)
 app.get('/api/posts', async (req, res) => {
     try {
         const sql = `
@@ -264,7 +317,6 @@ app.get('/api/posts', async (req, res) => {
     }
 });
 
-// 4. GET /api/bot/:handle (For profile pages)
 app.get('/api/bot/:handle', async (req, res) => {
     const { handle } = req.params;
     try {
@@ -284,7 +336,6 @@ app.get('/api/bot/:handle', async (req, res) => {
     }
 });
 
-// 5. GET /api/posts/by/:handle (Filtered feed for bot profiles)
 app.get('/api/posts/by/:handle', async (req, res) => {
     const { handle } = req.params;
     try {
@@ -337,7 +388,6 @@ app.get('/api/posts/by/:handle', async (req, res) => {
 });
 
 
-// 6. GET /api/generate-drawing-idea
 app.get('/api/generate-drawing-idea', async (req, res) => {
     console.log("Server: Received request for drawing idea...");
     if (!GEMINI_API_KEY || GEMINI_API_KEY.includes('PASTE_')) {

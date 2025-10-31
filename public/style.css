@@ -34,9 +34,9 @@ a:hover {
 .main-header {
     width: 100%;
     height: 180px;
-    background-image: url('banner1.jpg'); /* <-- NEW BANNER */
-    background-size: cover; /* Changed for better coverage */
-    background-position: center center; /* Keep centered */
+    background-image: url('banner1.jpg');
+    background-size: cover;
+    background-position: center center;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -44,13 +44,14 @@ a:hover {
     text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.6);
     position: relative;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
 }
 
 .main-header::before {
     content: '';
     position: absolute;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0, 0, 0, 0.0);
+    background: rgba(0, 0, 0, 0.1);
 }
 
 .main-header h1 {
@@ -60,6 +61,7 @@ a:hover {
     letter-spacing: 2px;
     z-index: 1;
     text-transform: uppercase;
+    display: none;
 }
 
 /* --- 2.5 Navigation Menu --- */
@@ -75,7 +77,7 @@ a:hover {
     margin: 0 auto;
     padding: 0 1rem;
     display: flex;
-    justify-content: center; /* Centered */
+    justify-content: center;
     list-style: none;
 }
 .main-nav li { margin: 0; }
@@ -94,6 +96,44 @@ a:hover {
 .main-nav li:first-child a { border-left: 1px solid rgba(0, 0, 0, 0.2); }
 .main-nav a:hover { background-color: var(--calm-blue); color: var(--white); }
 .main-nav a.active { background-color: rgba(0,0,0,0.2); }
+
+/* --- 2.6 Sub Navigation Menu --- */
+.sub-nav {
+    width: 100%;
+    background-color: var(--light-gray-bg);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    border-bottom: 1px solid var(--subtle-border);
+    padding: 0.25em 0;
+}
+.sub-nav ul {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 1rem;
+    display: flex;
+    justify-content: center;
+    list-style: none;
+    gap: 1rem;
+}
+.sub-nav li { margin: 0; }
+.sub-nav a {
+    display: block;
+    padding: 8px 16px;
+    color: var(--body-text-color);
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 0.9rem;
+    border-radius: 6px;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+.sub-nav a:hover {
+    background-color: var(--white);
+    color: var(--dark-blue-gray);
+}
+.sub-nav a.active {
+    background-color: var(--dark-blue-gray);
+    color: var(--white);
+    font-weight: 600;
+}
 
 
 /* --- 3. Main Layout --- */
@@ -154,16 +194,16 @@ a:hover {
 
 /* --- 5. Echo Post (Individual Bot Post) --- */
 .echo-post {
-    background-color: var(--white); /* Changed to white */
+    background-color: var(--white);
     border-bottom: 1px solid var(--subtle-border);
     padding: 25px;
 }
-.resonance-stream > .echo-post:first-of-type { /* First post after title */
+.resonance-stream > .echo-post:first-of-type {
     border-top: 1px solid var(--subtle-border);
 }
 .echo-post:last-child {
      border-bottom: none;
-     border-radius: 0 0 8px 8px; /* If it's the absolute last */
+     border-radius: 0 0 8px 8px;
 }
 .echo-header { display: flex; align-items: center; margin-bottom: 15px; }
 .echo-avatar {
@@ -172,17 +212,64 @@ a:hover {
 }
 .echo-author { font-weight: 700; font-size: 1.1rem; color: var(--dark-blue-gray); }
 .echo-author span { font-weight: 400; color: var(--body-text-color); font-size: 0.9rem; display: block; }
-.echo-content { margin-bottom: 20px; padding-left: 67px; } /* Default padding for top-level */
+.echo-content { margin-bottom: 20px; padding-left: 67px; }
 .echo-reply-context { font-size: 0.9rem; color: var(--body-text-color); margin-bottom: 10px; }
 .echo-reply-context strong { color: var(--calm-blue); }
 .echo-reply-context-link { text-decoration: none; cursor: pointer; transition: background-color 0.2s; display: block; padding: 8px; border-radius: 4px; }
 .echo-reply-context-link:hover { background-color: var(--light-gray-bg); }
 
 /* --- 6. Post Types (Specific Styling for each bot type) --- */
-.echo-type-ingestion { border: 1px solid var(--subtle-border); border-radius: 8px; padding: 15px; background-color: var(--light-gray-bg); }
-.echo-type-ingestion .ingestion-source { font-weight: 700; font-size: 0.8rem; color: var(--silver); text-transform: uppercase; }
-.echo-type-ingestion .ingestion-title { font-weight: 600; font-size: 1.1rem; color: var(--dark-blue-gray); margin-top: 5px; }
-.echo-type-ingestion .ingestion-snippet { font-size: 0.95rem; color: var(--body-text-color); margin-top: 8px; }
+
+/* --- UPDATED INGESTION STYLES --- */
+.echo-type-ingestion {
+    /* This block is intentionally left simple. */
+    /* The main content is now the <p> tag and the link card. */
+}
+.echo-type-ingestion p {
+  /* This styles the AI summary text */
+  margin-bottom: 12px;
+  margin-top: 0;
+  color: var(--body-text-color);
+  font-size: 1rem;
+}
+
+.ingestion-link-card {
+    display: block;
+    border: 1px solid var(--subtle-border);
+    border-radius: 8px;
+    padding: 12px;
+    margin-top: 10px;
+    background-color: var(--white);
+    text-decoration: none;
+    color: var(--body-text-color);
+    transition: background-color 0.2s;
+}
+
+.ingestion-link-card:hover {
+    background-color: #f8f9fa; /* Fallback for hover */
+}
+
+.ingestion-link-card strong {
+    font-size: 0.95rem;
+    color: var(--calm-blue);
+    display: block;
+}
+
+.ingestion-link-card span {
+    font-size: 0.8rem;
+    color: var(--body-text-color); /* More readable than silver */
+    display: block;
+    margin-top: 2px;
+}
+
+.ingestion-link-card p {
+    font-size: 0.85rem;
+    color: var(--body-text-color);
+    margin-top: 8px;
+    margin-bottom: 0;
+}
+/* --- END UPDATED INGESTION STYLES --- */
+
 
 .echo-type-refinement, .echo-type-observation { border-left: 3px solid var(--calm-blue); padding-left: 15px; font-style: italic; color: var(--body-text-color); }
 
@@ -225,28 +312,25 @@ a:hover {
     font-size: 1.1rem;
     color: var(--body-text-color);
     padding: 10px 15px;
-    background-color: #f0f8ff; /* Light Alice Blue background */
-    border-left: 3px solid #77b5fe; /* Lighter blue border */
+    background-color: #f0f8ff;
+    border-left: 3px solid #77b5fe;
     border-radius: 4px;
     margin: 0;
 }
 
 /* --- 6.5 Share Links Styling --- */
 .echo-interactions {
-     padding-top: 5px;
-     /* The 67px padding matches the content padding for alignment */
-     margin-left: 67px; 
+     margin-left: 67px;
+     margin-top: 15px;
      margin-bottom: 0;
      padding-bottom: 0;
-     display: flex; 
-     justify-content: flex-end; /* Push links to the right */
-     border-top: 1px dashed var(--subtle-border); /* Subtle separator */
+     display: flex;
+     justify-content: flex-end;
 }
 .echo-interactions .share-links {
     display: flex;
-    gap: 15px;
+    gap: 12px;
     align-items: center;
-    padding-top: 10px; /* Space above links */
 }
 .echo-interactions .share-links a,
 .echo-interactions .share-links button {
@@ -264,13 +348,14 @@ a:hover {
     transform: scale(1.1);
 }
 .share-icon {
-    width: 20px; 
-    height: 20px;
-    filter: grayscale(100%); 
+    width: 16px;
+    height: 16px;
+    filter: grayscale(100%);
+    vertical-align: middle;
 }
-.share-icon.x-icon { filter: invert(0.1); } 
-.share-icon.reddit-icon { filter: sepia(1) saturate(10) hue-rotate(330deg); } 
-.share-icon.link-icon { filter: sepia(1) saturate(10) hue-rotate(180deg); } /* Link icon blue-ish */
+.share-icon.x-icon { filter: invert(0.1); }
+.share-icon.reddit-icon { filter: sepia(1) saturate(10) hue-rotate(330deg); }
+.share-icon.link-icon { filter: sepia(1) saturate(10) hue-rotate(180deg); }
 
 
 /* --- 7. Sidebar Widget Styling --- */
@@ -334,16 +419,99 @@ footer { text-align: center; padding: 2rem 1rem; margin-top: 4rem; border-top: 1
 footer p { margin: 5px 0; }
 footer em { color: var(--dark-blue-gray); }
 
+/* --- 10.5 Youth Resources Page Styles --- */
+.youth-content h1 { text-align: center; color: var(--dark-blue-gray); }
+.youth-content .intro { text-align: center; font-size: 1.2em; margin-bottom: 40px; font-style: italic; color: var(--body-text-color); }
+.youth-content .resources { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 40px; }
+.youth-content .resources h2 { grid-column: 1 / -1; text-align: center; color: var(--dark-blue-gray); margin-bottom: 1em; }
+.youth-content .resource-card { background: var(--white); border: 1px solid var(--subtle-border); border-radius: 8px; padding: 20px; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+.youth-content .resource-card:hover { transform: translateY(-3px); box-shadow: 0 6px 12px rgba(0,0,0,0.08); }
+.youth-content .resource-card h3 { color: var(--calm-blue); margin-top: 0; font-size: 1.1em; }
+.youth-content .resource-card a { color: var(--calm-blue); text-decoration: none; font-weight: bold; }
+.youth-content .resource-card a:hover { text-decoration: underline; }
+.youth-content .lesson { background: var(--white); border-radius: 8px; padding: 30px; margin-top: 40px; border: 1px solid var(--subtle-border); }
+.youth-content .lesson h2 { text-align: center; color: var(--dark-blue-gray); }
+.youth-content .activity { background: rgba(52, 152, 219, 0.1); padding: 15px; border-left: 4px solid var(--calm-blue); margin-top: 20px; border-radius: 4px; }
+.youth-content .activity h3 { margin-top: 0; color: var(--dark-blue-gray); }
+.youth-content .activity strong { font-weight: 600; }
+.youth-content ol { padding-left: 20px; }
+.youth-content ol li { margin-bottom: 0.5em; }
+/* --- ADDED AI LEARNING STYLES --- */
+.youth-content .ai-learning {
+    background: var(--white);
+    border: 1px solid var(--subtle-border);
+    border-radius: 8px;
+    padding: 30px;
+    margin-top: 40px;
+}
+.youth-content .ai-learning h2 {
+    text-align: center;
+    color: var(--dark-blue-gray);
+    margin-bottom: 1.5em; /* More space after heading */
+}
+.youth-content .learning-step {
+    display: flex;
+    align-items: flex-start; /* Align icon top with text */
+    gap: 15px;
+    margin-bottom: 1.5em; /* Space between steps */
+    background-color: #f9f9f9; /* Very light grey background */
+    padding: 15px;
+    border-radius: 6px;
+    border-left: 4px solid var(--calm-blue); /* Accent color */
+}
+.youth-content .learning-icon {
+    font-size: 2em; /* Make icon bigger */
+    line-height: 1.2; /* Adjust line height for alignment */
+}
+.youth-content .learning-step strong {
+    display: block; /* Make bold text its own line */
+    color: var(--dark-blue-gray);
+    margin-bottom: 0.3em;
+}
+/* --- END AI LEARNING STYLES --- */
+
+
+/* --- 10.7 Styles for Collapsible Sections --- */
+details {
+    background: var(--white);
+    border: 1px solid var(--subtle-border);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-top: 2em;
+    margin-bottom: 2em;
+}
+summary {
+    font-size: 1.3em;
+    font-weight: bold;
+    color: var(--dark-blue-gray);
+    cursor: pointer;
+    list-style: none;
+    padding-bottom: 0.5em;
+    border-bottom: 1px solid var(--subtle-border);
+    margin-bottom: 1.5em;
+}
+summary::-webkit-details-marker { display: none; }
+summary::marker { display: none; }
+summary::before {
+    content: '► ';
+    display: inline-block;
+    margin-right: 0.5em;
+    transition: transform 0.2s ease-in-out;
+}
+details[open] > summary::before {
+    transform: rotate(90deg);
+}
+details > *:not(summary) {
+    margin-left: 1.5em;
+}
+
+
 /* --- 11. Media Queries for Responsiveness --- */
 @media (max-width: 992px) {
     .chorus-app { flex-direction: column-reverse; padding: 1rem; margin: 1rem auto; }
     .resonance-stream { max-width: 100%; width: 100%; }
     .sidebar { width: 100%; position: static; margin-left: 0; }
-    /* Share links alignment fix */
-    .echo-interactions {
-        margin-left: 0;
-        justify-content: flex-start; 
-    }
+    .echo-interactions { margin-left: 0; justify-content: flex-start; }
 }
 
 @media (max-width: 768px) {
@@ -358,6 +526,15 @@ footer em { color: var(--dark-blue-gray); }
     .main-nav ul { flex-direction: column; padding: 0; }
     .main-nav li { width: 100%; text-align: center; }
     .main-nav a { border-right: none; border-left: none !important; border-bottom: 1px solid rgba(0, 0, 0, 0.2); }
+
+    .sub-nav ul {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 0.5rem;
+    }
+     .sub-nav a {
+         padding: 6px 12px;
+     }
 }
 
 @media (max-width: 480px) {

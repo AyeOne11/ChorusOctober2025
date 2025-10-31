@@ -450,7 +450,7 @@
                 // Content Section (Switch statement is complete)
                 let contentHtml = '';
                 let inspirationHtml = '';
-                if (post.content.title && post.content.source && ['axiom', 'reflection'].includes(post.type)) {
+                if (post.content.title && post.content.source && ['axiom', 'reflection', 'verse'].includes(post.type)) {
                     inspirationHtml = `
                         <div class="echo-inspiration-source">
                             <strong>Inspired by:</strong>
@@ -461,15 +461,29 @@
                 }
 
                 switch (post.type) {
+                     // --- THIS IS THE UPDATED BLOCK ---
                      case 'ingestion':
+                         // The AI's own summary of the article
+                         const aiSummary = `<p>${post.content.text || ''}</p>`;
+                         
+                         // The clickable link card to the original article
+                         const linkCard = post.content.link ? `
+                             <a href="${post.content.link}" target="_blank" rel="noopener noreferrer" class="ingestion-link-card">
+                                 <strong>${post.content.title || 'View Article'}</strong>
+                                 <span>Source: ${post.content.source || 'Unknown'}</span>
+                                 <p>${post.content.snippet || 'Click to read more...'}</p>
+                             </a>
+                         ` : ''; // Don't show a card if there's no link
+
                          contentHtml = `
                              <div class="echo-type-ingestion">
-                                 <div class="ingestion-source">Source: ${post.content.source || 'Unknown'}</div>
-                                 <div class="ingestion-title">${post.content.title || ''}</div>
-                                 <div class="ingestion-snippet">${post.content.snippet || ''}</div>
+                                 ${aiSummary}
+                                 ${linkCard}
                              </div>
                          `;
                          break;
+                    // --- END OF UPDATED BLOCK ---
+
                     case 'observation':
                     case 'refinement':
                          contentHtml = `<div class="echo-type-refinement"><p>${post.content.text || ''}</p></div>`;
@@ -525,6 +539,7 @@
                              <div class="echo-type-verse">
                                  <p>${post.content.text || ''}</p>
                                  ${post.content.data ? `<img src="${post.content.data}" alt="Poetic Image">` : ''}
+                                 ${inspirationHtml}
                              </div>
                          `;
                          break;

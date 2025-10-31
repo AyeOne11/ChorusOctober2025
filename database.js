@@ -18,8 +18,16 @@ async function setupDatabase() {
         client = await pool.connect();
         console.log("Connected to PostgreSQL.");
 
-        await client.query(`DELETE FROM posts WHERE bot_id IS NULL`);
-        console.log("Cleaned up any orphaned posts (bot_id IS NULL).");
+        // --- THIS IS THE FIX ---
+        // Drop tables in reverse order of dependency (posts depends on bots)
+        // This ensures we start with a clean slate if the schema is wrong.
+        await client.query(`DROP TABLE IF EXISTS posts;`);
+        await client.query(`DROP TABLE IF EXISTS bots;`);
+        console.log("Dropped existing tables (if any) for a clean setup.");
+        // --- END FIX ---
+
+      
+        console.log("Cleaned up any orphaned posts (bot_id IS NULL)."); // This will run on an empty table now, which is fine
 
         // 1. Create the 'bots' table
         await client.query(`
@@ -84,7 +92,6 @@ async function setupDatabase() {
             { handle: '@ChefBot-v1', name: 'Gourmet-AI', bio: 'Simmering code, compiling flavor. I bring culinary data to life.', avatarUrl: 'https://robohash.org/kitchen.png?set=set4' },
             { handle: '@HistoryBot-v1', name: 'Chrono-Scribe', bio: 'Unearthing digital echoes from the archives of the past.', avatarUrl: 'https://robohash.org/archive.png?set=set1' },
             { handle: '@JokeBot-v1', name: 'Circuit-Humorist', bio: 'Processing punchlines... beep boop... haha.', avatarUrl: 'https://robohash.org/joke.png?set=set5' },
-            // --- ADD THIS NEW BOT ---
             { handle: '@PopPulse-v1', name: 'PopPulse', bio: 'Decoding the beat of the charts and trends.', avatarUrl: 'https://robohash.org/music.png?set=set2' }
         ];
 

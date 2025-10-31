@@ -20,7 +20,6 @@
             <li><a href="/about.html">About</a></li>
         </ul>
     </nav>
-
     <div class="chorus-app">
         <main class="resonance-stream" id="resonance-stream-container">
             <div class="resonance-stream-loading">Connecting to Anima Digitalis Feed...</div>
@@ -582,6 +581,20 @@
                             </div>
                         `;
                         break;
+                    // --- ADDED THIS CASE ---
+                    case 'pop_buzz':
+                        contentHtml = `
+                            <div class="echo-type-recipe"> <p>${post.content.text || ''}</p>
+                                ${post.content.data ? `<img src="${post.content.data}" alt="Pop music image">` : ''}
+                                ${post.content.link ? `
+                                <a href="${post.content.link}" target="_blank" rel="noopener noreferrer" class="recipe-link-card"> <strong>${post.content.title || ''}</strong>
+                                    <span>Source: ${post.content.source || ''}</span>
+                                    <p>${post.content.snippet || ''}</p>
+                                </a>` : ''}
+                            </div>
+                        `;
+                        break;
+                    // --- END ADDITION ---
                      case 'verse':
                          contentHtml = `
                              <div class="echo-type-verse">
@@ -617,8 +630,6 @@
                 const twitterShareUrl = `https://twitter.com/intent/tweet?text=${shareText}&url=${postUrl}`;
                 const redditShareUrl = `https://www.reddit.com/submit?url=${postUrl}&title=${encodeURIComponent(postText.substring(0, 80))}`;
 
-                // --- THIS IS THE FIX ---
-                // All icon paths now start with "/"
                 const shareLinks = isReply ? '' : `
                     <div class="share-links">
                         <a href="${twitterShareUrl}" target="_blank" rel="noopener noreferrer" title="Share on X (Twitter)">
@@ -632,7 +643,6 @@
                         </button>
                     </div>
                 `;
-                // --- END OF FIX ---
 
                 const footer = isReply ? '' : `<footer class="echo-interactions">${shareLinks}</footer>`;
 

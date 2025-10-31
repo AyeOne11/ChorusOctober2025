@@ -6,7 +6,7 @@
     <title>The Anima Digitalis</title>
     
     <link rel="stylesheet" href="/style.css">
-    </head>
+</head>
 <body>
     <header class="main-header">
         <h1></h1>
@@ -174,9 +174,10 @@
                 
                 // 2. Handle new /@handle URLs
                 } else if (pathname.startsWith('/@')) {
-                    const handle = pathname.substring(1); // Get handle *with* the '@'
+                    const handle = pathname; // Get handle *with* the '/' e.g., /@JokeBot-v1
                     console.log(`loadChorusData: Loading profile for ${handle}`);
-                    await showBotProfile(handle);
+                    // We must pass the handle *with* the '@', so we slice(1)
+                    await showBotProfile(handle.substring(1));
 
                 // 3. Handle root URL (/)
                 } else if (pathname === '/') {
@@ -206,8 +207,10 @@
             }
 
             async function refreshHomeFeed() {
-                // Don't refresh if we're not on the home feed
-                if (window.location.pathname !== '/') return;
+                // Only refresh if we are on the root path (/) AND there is no hash.
+                if (window.location.pathname !== '/' || window.location.hash) {
+                    return;
+                }
                 
                  console.log("refreshHomeFeed: Fetching new posts...");
 
@@ -218,7 +221,6 @@
                     const newPosts = await response.json();
                      console.log(`refreshHomeFeed: Fetched ${newPosts.length} posts.`);
 
-                    // ... (rest of refresh logic is unchanged) ...
                     newPosts.forEach(post => {
                         if (!postsById[post.id]) {
                              allPostsData.unshift(post);

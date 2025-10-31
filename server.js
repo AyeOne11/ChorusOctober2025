@@ -86,7 +86,7 @@ app.get('/post/:id', async (req, res) => {
         // 1. Fetch post data from DB
         const postSql = `
             SELECT 
-                p.content_text, p.content_data, p.content_title, p.content_snippet,
+                p.type, p.content_text, p.content_data, p.content_title, p.content_snippet,
                 b.name, b.bio, b.avatarurl
             FROM posts p
             JOIN bots b ON p.bot_id = b.id
@@ -99,11 +99,24 @@ app.get('/post/:id', async (req, res) => {
             console.log(`Server: Found post ${postId}. Generating post-specific tags.`);
             const post = result.rows[0];
             
-            const postTitle = (post.content_title || post.content_text?.substring(0, 60) || `Post by ${post.name}`).replace(/"/g, '&quot;');
-            const postDescription = (post.content_snippet || post.content_text?.substring(0, 150) || post.bio).replace(/"/g, '&quot;');
-            const postImage = post.content_data || post.avatarurl || defaultImage;
+            let postTitle = '';
+            let postDescription = '';
+            let postImage = '';
             const postUrl = `https://theanimadigitalis.com/post/${postId}`;
 
+            if (post.type === 'joke_reply') {
+                // Handle Joke REPLIES (which have no image)
+                postTitle = `A joke from ${post.name}`;
+                postDescription = post.content_text.replace(/"/g, '&quot;'); // Use the full joke as the description
+                postImage = post.avatarurl || defaultImage; // Use the bot's avatar
+            } else {
+                // Handle all other posts (including original 'joke' posts, which now have content_data)
+                postTitle = (post.content_title || post.content_text?.substring(0, 60) || `Post by ${post.name}`).replace(/"/g, '&quot;');
+                postDescription = (post.content_snippet || post.content_text?.substring(0, 150) || post.bio).replace(/"/g, '&quot;');
+                postImage = post.content_data || post.avatarurl || defaultImage;
+            }
+
+            // 3. Create the dynamic tags
             injectedTags = `
                 <title>${postTitle} - The Anima Digitalis</title>
                 <meta property="og:title" content="${postTitle}" />
@@ -111,11 +124,11 @@ app.get('/post/:id', async (req, res) => {
                 <meta property="og:image" content="${postImage}" />
                 <meta property="og:url" content="${postUrl}" />
                 <meta property="og:type" content="article" />
-                <meta name="twitter:card" content="summary_large_image" />
+                <meta name="twitter:card" content="summary_large_image" /> 
                 <meta name="twitter:title" content="${postTitle}" />
                 <meta name="twitter:description" content="${postDescription}" />
                 <meta name="twitter:image" content="${postImage}" />
-                `;
+            `;
             
         } else {
              // --- POST NOT FOUND ---
@@ -197,7 +210,6 @@ app.get('/@:handle', async (req, res) => {
 app.use(express.static('public'));
 
 // === RSS News Cache ===
-// ... (rest of server.js is unchanged) ...
 const RSS_FEEDS = [
   'http://feeds.bbci.co.uk/news/world/rss.xml',
   'https.rss.nytimes.com/services/xml/rss/nyt/World.xml',
@@ -248,7 +260,6 @@ async function refreshNewsCache() {
 
 
 // === API Routes ===
-// ... (All API routes /api/... are unchanged) ...
 app.get('/api/world-news', (req, res) => {
     if (cachedNews.length === 0) {
         return res.status(503).json({ error: "News cache is building. Try again soon." });
@@ -493,13 +504,11 @@ app.listen(PORT, async () => {
     };
     setInterval(runJokeCycle, 3 * 60 * 60 * 1000); // Every 3 hours
 
-    // --- ADDED NEW BOT CYCLE ---
     const runPopBotCycle = async () => {
         try { console.log("\n--- Running PopPulse Cycle ---"); await runPopBot(); }
         catch (e) { console.error("Server: Error in PopPulse Cycle:", e.message); }
     };
     setInterval(runPopBotCycle, 4 * 60 * 60 * 1000); // Every 4 hours
-    // --- END ADDITION ---
 
 
     // --- Initial Bot Posts (Staggered) ---
@@ -512,6 +521,5 @@ app.listen(PORT, async () => {
     setTimeout(runChefCycle, 550);
     setTimeout(runHistoryCycle, 650);
     setTimeout(runJokeCycle, 750);
-    setTimeout(runPopBotCycle, 850); // <-- ADDED
+    setTimeout(runPopBotCycle, 850); 
 });
-

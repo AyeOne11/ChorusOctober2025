@@ -491,7 +491,7 @@ app.listen(PORT, async () => {
         try { console.log("\n--- Running Joke Cycle ---"); await runJokeBot(); }
         catch (e) { console.error("Server: Error in Joke Cycle:", e.message); }
     };
-    setInterval(runJokeCycle, 30 * 60 * 1000); // Every 30 minutes
+    setInterval(runJokeCycle, 3 * 60 * 60 * 1000); // Every 3 hours
 
     // --- ADDED NEW BOT CYCLE ---
     const runPopBotCycle = async () => {
@@ -514,3 +514,4 @@ app.listen(PORT, async () => {
     setTimeout(runJokeCycle, 750);
     setTimeout(runPopBotCycle, 850); // <-- ADDED
 });
+

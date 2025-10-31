@@ -6,6 +6,7 @@ const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
 const RssParser = require('rss-parser');
+const fetch = require('node-fetch'); // <-- ADDED for Gemini API call
 
 // --- Import Bot Runners ---
 const { runBot } = require('./bot.js');
@@ -16,6 +17,7 @@ const { runPoetBot } = require('./poetBot.js');
 const { runChefBot } = require('./chefBot.js');
 const { runHistoryBot } = require('./worldHistoryBot.js');
 const { runJokeBot } = require('./jokeBot.js');
+const { runAnalystBot } = require('./analystBot.js');
 
 // --- App & Middleware Setup ---
 const app = express();
@@ -35,6 +37,9 @@ const pool = new Pool({
     port: process.env.DB_PORT,
     ssl: { rejectUnauthorized: false }
 });
+
+// --- API Key ---
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY; // <-- ADDED for Gemini API call
 
 // === RSS News Cache ===
 const RSS_FEEDS = [
@@ -179,11 +184,10 @@ app.get('/api/bot/:handle', async (req, res) => {
     }
 });
 
-// 5. GET /api/posts/by/:handle (Filtered feed for bot profiles - CORRECTED)
+// 5. GET /api/posts/by/:handle (Filtered feed for bot profiles)
 app.get('/api/posts/by/:handle', async (req, res) => {
     const { handle } = req.params;
     try {
-        // Fetch the bot's posts AND any replies to those posts
         const sql = `
             SELECT
                 p.id, p.type, p.reply_to_handle, p.reply_to_text, p.reply_to_id,
@@ -195,11 +199,10 @@ app.get('/api/posts/by/:handle', async (req, res) => {
             WHERE b.handle = $1
                OR p.reply_to_id IN (SELECT id FROM posts WHERE bot_id = (SELECT id FROM bots WHERE handle = $1))
             ORDER BY p.timestamp DESC
-            LIMIT 50 -- Fetch more to include replies
+            LIMIT 50
         `;
         const result = await pool.query(sql, [handle]);
 
-        // Map the database rows to the expected JSON format
         const formattedPosts = result.rows.map(row => ({
              id: row.id,
             author: {
@@ -225,14 +228,70 @@ app.get('/api/posts/by/:handle', async (req, res) => {
             timestamp: row.timestamp
         }));
 
-        // --- SEND THE FORMATTED POSTS DIRECTLY ---
-        res.json(formattedPosts); // Send all posts fetched by SQL
+        res.json(formattedPosts);
 
     } catch (err) {
         console.error(`Server: Error fetching posts for ${handle}:`, err.message);
         res.status(500).json({ error: "Database error fetching posts." });
     }
 });
+
+
+
+// ---------------------------------------------------------------
+// 6. NEW ENDPOINT – Drawing-idea generator (for LittleLit Playground)
+// ---------------------------------------------------------------
+app.get('/api/generate-drawing-idea', async (req, res) => {
+    console.log("Server: Received request for drawing idea...");
+    if (!GEMINI_API_KEY || GEMINI_API_KEY.includes('PASTE_')) {
+        console.error("Server: Gemini API key not set for drawing idea.");
+        return res.status(500).json({ error: "Server configuration error." });
+    }
+
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const prompt = `
+    You are a friendly, creative assistant for kids.
+    Task: Generate ONE simple, fun, and imaginative drawing idea.
+    Examples: "A cat wearing tiny rain boots", "A rocket ship made of fruit", "A happy cloud painting a rainbow", "A snail with a castle for its shell".
+    Be concise (one short sentence).
+
+    Response MUST be ONLY valid JSON: { "idea": "Your fun drawing idea here." }
+    Escape quotes in "idea" with \\".
+    `;
+
+    try {
+        const response = await fetch(geminiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { temperature: 1.0, maxOutputTokens: 256, responseMimeType: "application/json" }
+            })
+        });
+
+        if (!response.ok) throw new Error(`Gemini API error! Status: ${response.status}`);
+        const data = await response.json();
+        const candidate = data.candidates?.[0];
+
+        if (!candidate?.content?.parts?.[0]?.text) {
+            throw new Error(`AI response empty/blocked. Reason: ${candidate?.finishReason ?? "UNKNOWN"}`);
+        }
+
+        const aiResponseText = candidate.content.parts[0].text;
+        const jsonMatch = aiResponseText.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error("AI response did not contain valid JSON.");
+
+        const ideaJson = JSON.parse(jsonMatch[0]);   // { "idea": "…" }
+
+        console.log(`Server: Sending drawing idea: ${ideaJson.idea}`);
+        res.json(ideaJson);   // → { "idea": "…" }
+
+    } catch (error) {
+        console.error("Server: Error generating drawing idea:", error.message);
+        res.status(500).json({ error: "Failed to generate an idea. Please try again!" });
+    }
+});
+// --- END NEW API ROUTE ---
 
 
 // === Server Start & Bot Scheduling ===
@@ -246,6 +305,12 @@ app.listen(PORT, async () => {
     setInterval(refreshNewsCache, 2 * 60 * 1000);
 
     // --- Schedule Bots ---
+    const runAnalystCycle = async () => {
+        try { console.log("\n--- Running Analyst Cycle ---"); await runAnalystBot(); }
+        catch (e) { console.error("Server: Error in Analyst Cycle:", e.message); }
+    };
+    setInterval(runAnalystCycle, 60 * 60 * 1000); // Every 60 minutes
+
     const runIngestCycle = async () => {
         try { console.log("\n--- Running Ingest Cycle ---"); await runBot(); }
         catch (e) { console.error("Server: Error in Ingest Cycle:", e.message); }
@@ -296,13 +361,15 @@ app.listen(PORT, async () => {
 
 
     // --- Initial Bot Posts (Staggered) ---
-    console.log("Server: Running initial staggered bot posts...");
-    setTimeout(runIngestCycle, 2000);
-    setTimeout(runMagnusCycle, 4000);
-    setTimeout(runArtistCycle, 6000);
-    setTimeout(runRefinerCycle, 8000);
-    setTimeout(runPoetCycle, 5000);
-    setTimeout(runChefCycle, 7000);
-    setTimeout(runHistoryCycle, 9000);
-    setTimeout(runJokeCycle, 10000);
+   console.log("Server: Running initial staggered bot posts...");
+// Run the first several bots immediately (within the first 0.5 seconds)
+setTimeout(runIngestCycle, 50);    // Change 2000 to 50ms
+setTimeout(runMagnusCycle, 150);   // Change 4000 to 150ms
+setTimeout(runArtistCycle, 250);   // Change 6000 to 250ms
+setTimeout(runRefinerCycle, 350);  // Change 8000 to 350ms
+setTimeout(runPoetCycle, 450);     // Changed 5000 to 450ms
+setTimeout(runChefCycle, 550);     // Changed 7000 to 550ms
+setTimeout(runHistoryCycle, 650);  // Changed 9000 to 650ms
+setTimeout(runJokeCycle, 750); 
+setTimeout(runAnalystCycle, 850);    
 });

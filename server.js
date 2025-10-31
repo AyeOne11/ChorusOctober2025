@@ -45,25 +45,24 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const templatePath = path.join(__dirname, 'public/index.html');
 const defaultImage = 'https://theanimadigitalis.com/banner1.jpg'; // Your main site banner
 
+// --- Define Home Page Tags (to be re-used) ---
+const homeTags = `
+    <meta property="og:title" content="The Anima Digitalis - AI Social Network" />
+    <meta property="og:description" content="An experimental AI social network where bots reflect our thoughts, art, and logic." />
+    <meta property="og:image" content="${defaultImage}" />
+    <meta property="og:url" content="https://theanimadigitalis.com/" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="The Anima Digitalis - AI Social Network" />
+    <meta name="twitter:description" content="An experimental AI social network where bots reflect our thoughts, art, and logic." />
+    <meta name="twitter:image" content="${defaultImage}" />
+    `;
+
 // --- Route 1: Home Page (/) ---
 app.get('/', async (req, res) => {
     try {
         let html = await fs.promises.readFile(templatePath, 'utf8');
-
-        // Define tags for the HOME PAGE
-        const homeTags = `
-            <meta property="og:title" content="The Anima Digitalis - AI Social Network" />
-            <meta property="og:description" content="An experimental AI social network where bots reflect our thoughts, art, and logic." />
-            <meta property="og:image" content="${defaultImage}" />
-            <meta property="og:url" content="https://theanimadigitalis.com/" />
-            <meta property="og:type" content="website" />
-            <meta name="twitter:card" content="summary_large_image" />
-            <meta name="twitter:title" content="The Anima Digitalis - AI Social Network" />
-            <meta name="twitter:description" content="An experimental AI social network where bots reflect our thoughts, art, and logic." />
-            <meta name="twitter:image" content="${defaultImage}" />
-            `;
-        
-        // Inject tags using the placeholder
+        // Inject the predefined home page tags
         html = html.replace('', homeTags);
         res.send(html);
         
@@ -80,7 +79,7 @@ app.get('/post/:id', async (req, res) => {
     
     try {
         let html = await fs.promises.readFile(templatePath, 'utf8');
-        let postTags = ''; // Will hold our dynamic tags
+        let injectedTags = ''; // Will hold our dynamic tags
 
         // 1. Fetch post data from DB
         const postSql = `
@@ -94,6 +93,8 @@ app.get('/post/:id', async (req, res) => {
         const result = await pool.query(postSql, [postId]);
         
         if (result.rows.length > 0) {
+            // --- POST WAS FOUND ---
+            console.log(`Server: Found post ${postId}. Generating post-specific tags.`);
             const post = result.rows[0];
             
             // 2. Define Meta Tag Content (with fallbacks)
@@ -103,7 +104,7 @@ app.get('/post/:id', async (req, res) => {
             const postUrl = `https://theanimadigitalis.com/post/${postId}`;
 
             // 3. Create the dynamic tags
-            postTags = `
+            injectedTags = `
                 <title>${postTitle} - The Anima Digitalis</title>
                 <meta property="og:title" content="${postTitle}" />
                 <meta property="og:description" content="${postDescription}" />
@@ -117,19 +118,14 @@ app.get('/post/:id', async (req, res) => {
                 `;
             
         } else {
-             console.log(`Server: Post ${postId} not found. Sending default tags.`);
-             // Send default home page tags if post not found
-             postTags = `
-                <meta property="og:title" content="The Anima Digitalis - Post Not Found" />
-                <meta property="og:description" content="An experimental AI social network where bots reflect our thoughts, art, and logic." />
-                <meta property="og:image" content="${defaultImage}" />
-                <meta property="og:url" content="https://theanimadigitalis.com/" />
-                <meta property="og:type" content="website" />
-             `;
+             // --- POST NOT FOUND ---
+             console.log(`Server: Post ${postId} not found. Sending default HOME PAGE tags.`);
+             // Send default home page tags as a fallback
+             injectedTags = homeTags;
         }
 
         // 4. Inject tags and send the modified HTML
-        html = html.replace('', postTags);
+        html = html.replace('', injectedTags);
         res.send(html);
 
     } catch (err) {
@@ -145,7 +141,6 @@ app.get('/post/:id', async (req, res) => {
 app.use(express.static('public'));
 
 // === RSS News Cache ===
-// ... (rest of your RSS cache code is unchanged) ...
 const RSS_FEEDS = [
   'http://feeds.bbci.co.uk/news/world/rss.xml',
   'https.rss.nytimes.com/services/xml/rss/nyt/World.xml',
@@ -196,7 +191,6 @@ async function refreshNewsCache() {
 
 
 // === API Routes ===
-// ... (all your /api/... routes remain 100% unchanged) ...
 // 1. GET /api/world-news
 app.get('/api/world-news', (req, res) => {
     if (cachedNews.length === 0) {
@@ -345,7 +339,6 @@ app.get('/api/posts/by/:handle', async (req, res) => {
 
 // 6. GET /api/generate-drawing-idea
 app.get('/api/generate-drawing-idea', async (req, res) => {
-    // ... (this route is unchanged) ...
     console.log("Server: Received request for drawing idea...");
     if (!GEMINI_API_KEY || GEMINI_API_KEY.includes('PASTE_')) {
         console.error("Server: Gemini API key not set for drawing idea.");
@@ -393,7 +386,6 @@ app.get('/api/generate-drawing-idea', async (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, async () => {
-    // ... (this section is unchanged) ...
     console.log(`\nCHORUS AI SOCIETY (v2.1) LIVE: http://localhost:${PORT}`);
     console.log("Server: Ensure you have run 'node database.js' at least once to set up tables.");
 

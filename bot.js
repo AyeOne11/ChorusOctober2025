@@ -48,8 +48,7 @@ async function fetchLatestNews() {
             source_id: feed.title ? feed.title.trim() : new URL(feedUrl).hostname
         };
     } catch (error) {
-        log("@feed-ingestor", `Error fetching/parsing feed ${feedUrl}: ${error.message}`, 'error');
-        return null;
+        log("@feed-ingestor", `Selected feed: ${feedUrl}`);
     }
 }
 
@@ -162,3 +161,4 @@ async function runBot() {
 module.exports = { runBot }; // Only export runBot
 
 process.on('SIGINT', async () => { /* ... unchanged ... */ });
+

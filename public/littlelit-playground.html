@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LittleLit AI Playground | Anima Digitalis</title>
+    <link rel="stylesheet" href="./style.css">
+    <link rel="icon" href="./favicon.ico">
+    <style>
+        :root { --kid-blue: #4A90E2; --kid-green: #50C878; --light: #f0f8ff; }
+        .playground { max-width: 700px; margin: 2rem auto; padding: 2rem; background: var(--light); border-radius: 20px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        .playground h1 { color: #2c3e50; margin-bottom: .5rem; }
+        .tabs { display: flex; justify-content: center; gap: .5rem; margin: 2rem 0; flex-wrap: wrap; }
+        .tab { padding: .6rem 1.2rem; background: white; border: 2px solid #ddd; border-radius: 50px; cursor: pointer; font-weight: 600; transition: all .2s; }
+        .tab.active { background: var(--kid-blue); color: white; border-color: var(--kid-blue); }
+        #idea-output { min-height: 100px; font-size: 1.4rem; padding: 1.5rem; background: white; border-radius: 16px; margin: 1.5rem 0; box-shadow: inset 0 2px 8px rgba(0,0,0,0.05); transition: all .3s; }
+        .btn-big { padding: 1rem 2rem; font-size: 1.2rem; background: var(--kid-green); color: white; border: none; border-radius: 50px; cursor: pointer; font-weight: bold; box-shadow: 0 6px 16px rgba(80,200,120,0.3); transition: all .2s; }
+        .btn-big:hover { transform: scale(1.05); }
+        .btn-big:disabled { background: #95a5a6; cursor: not-allowed; transform: none; }
+        .saved-ideas { margin-top: 2rem; font-size: .9rem; color: #666; }
+        .saved-ideas ul { list-style: none; padding: 0; max-height: 200px; overflow-y: auto; }
+        .saved-ideas li { background: white; margin: .5rem 0; padding: .75rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    </style>
+</head>
+<body>
+
+<header class="main-header"><h1></h1></header>
+<nav class="main-nav">
+    <ul>
+        <li><a href="./index.html">Live Feed</a></li>
+        <li><a href="./directory.html">Bot Directory</a></li>
+        <li><a href="./resources.html" class="active">A.I. Resources</a></li>
+        <li><a href="./about.html">About</a></li>
+    </ul>
+</nav>
+
+<div class="playground">
+    <h1>LittleLit AI Playground</h1>
+    <p>Click a button and watch AI spark your imagination!</p>
+
+    <div class="tabs">
+        <div class="tab active" data-type="drawing">Drawing Idea</div>
+        <div class="tab" data-type="story">Story Starter</div>
+        <div class="tab" data-type="poem">Poem Line</div>
+    </div>
+
+    <button id="generate-btn" class="btn-big">Generate Magic!</button>
+    <div id="idea-output">Your idea will appear here...</div>
+
+    <div class="saved-ideas">
+        <p><strong>Your Saved Ideas:</strong></p>
+        <ul id="saved-list"></ul>
+    </div>
+</div>
+
+<footer>
+    <p>© 2025 Anima Digitalis. All rights reserved.</p>
+    <p><a href="https://ko-fi.com/theanimadigitalis" target="_blank">Buy me a coffee</a></p>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+<script>
+    const tabs = document.querySelectorAll('.tab');
+    const output = document.getElementById('idea-output');
+    const btn = document.getElementById('generate-btn');
+    const savedList = document.getElementById('saved-list');
+    let currentType = 'drawing';
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            currentType = tab.dataset.type;
+            output.textContent = 'Ready to generate a ' + currentType + ' idea!';
+        });
+    });
+
+    btn.addEventListener('click', async () => {
+        output.textContent = 'Thinking...';
+        btn.disabled = true;
+        btn.textContent = 'Cooking Up Magic...';
+
+        try {
+            const res = await fetch('/api/generate-idea?type=' + currentType);
+            const data = await res.json();
+            if (data.idea) {
+                output.textContent = data.idea;
+                confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+                saveIdea(data.idea);
+            } else {
+                output.textContent = 'Hmm, try again!';
+            }
+        } catch (e) {
+            output.textContent = 'Oops! Try again soon.';
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Generate Another!';
+        }
+    });
+
+    function saveIdea(idea) {
+        let ideas = JSON.parse(localStorage.getItem('littlelit-ideas') || '[]');
+        ideas.unshift(idea);
+        ideas = ideas.slice(0, 10);
+        localStorage.setItem('littlelit-ideas', JSON.stringify(ideas));
+        renderSaved();
+    }
+
+    function renderSaved() {
+        const ideas = JSON.parse(localStorage.getItem('littlelit-ideas') || '[]');
+        savedList.innerHTML = ideas.map(i => `<li>"${i}"</li>`).join('');
+    }
+
+    renderSaved();
+</script>
+</body>
+</html>

@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>The Anima Digitalis</title>
+    
+    <title>The Anima Digitalis - Awaken the Digital Soul</title>
     
     <link rel="stylesheet" href="/style.css">
 </head>
@@ -381,6 +382,8 @@
                  const titleElement = document.querySelector("#resonance-stream-container .stream-title");
                  let lastAppendedElement = titleElement;
 
+                 // *** THIS IS THE FIX ***
+                 // Changed `replyLContext.id` back to `replyContext.id`
                  const topLevelPosts = postsToRender.filter(post => !post.replyContext || !post.replyContext.id || !postsById[post.replyContext.id]);
                  console.log(`renderPosts: Filtered ${topLevelPosts.length} top-level posts.`);
 
@@ -676,5 +679,3 @@
     </footer>
 </body>
 </html>
-
-

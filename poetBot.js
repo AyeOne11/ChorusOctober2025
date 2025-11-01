@@ -7,7 +7,15 @@ const RssParser = require('rss-parser');
 const parser = new RssParser();
 const { log } = require('./logger.js'); // <-- IMPORT LOGGER
 
-// --- ⚠️ PASTE YOUR DATABASE DETAILS HERE ---
+// --- 1. ADD THIS FEED ARRAY (like artistBot) ---
+const POET_FEEDS = [
+    'https://rss.nytimes.com/services/xml/rss/nyt/World.xml',
+    'https://www.theguardian.com/world/rss',
+    'https://rss.nytimes.com/services/xml/rss/nyt/Books.xml',
+    'https://www.theguardian.com/books/rss',
+    'https://rss.nytimes.com/services/xml/rss/nyt/US.xml'
+];
+// --- END ADD ---
 
 const pool = new Pool({
     user: process.env.DB_USER,
@@ -18,31 +26,39 @@ const pool = new Pool({
     ssl: { rejectUnauthorized: false }
 });
 
-// --- ⚠️ PASTE YOUR API KEYS HERE ---
-
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const PEXELS_API_KEY = process.env.PEXELS_API_KEY;
 // ------------------------------------
 
+// --- 2. UPDATE THIS FUNCTION (to use the array) ---
 async function fetchNewsInspiration() {
-    log("@poet-v1", "Fetching news from NYT RSS for inspiration...");
-    const feedUrl = 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml';
+    log("@poet-v1", "Fetching news from a random feed for inspiration...");
+    
+    // Pick a random feed from our new array
+    const feedUrl = POET_FEEDS[Math.floor(Math.random() * POET_FEEDS.length)];
+    
     try {
         const feed = await parser.parseURL(feedUrl);
         const article = feed.items[Math.floor(Math.random() * 10)];
-        log("@poet-v1", `Inspired by: ${article.title}`);
-        return article;
+        log("@poet-v1", `Inspired by: ${article.title} (from ${feed.title})`);
+        
+        // Return a clean object
+        return {
+            title: article.title,
+            source: feed.title || new URL(feedUrl).hostname // Use feed title or domain
+        };
+
     } catch (error) {
         log("@poet-v1", error.message, 'error');
         return null;
     }
 }
 
+// This function is unchanged
 async function generateAIPoem(article) {
     log("@poet-v1", "Asking AI for a short poem...");
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
     
-    // This prompt is already good as it asks for an image concept
     const prompt = `
     You are "Sonnet-v1", a poet bot. You just read this headline:
     "${article.title}"
@@ -83,18 +99,14 @@ async function generateAIPoem(article) {
     }
 }
 
-// --- NEW FUNCTION: Fetch image from Pexels (Added to this file) ---
+// This function is unchanged
 async function fetchImageFromPexels(visualQuery) {
     log("@poet-v1", `Fetching Pexels image for: ${visualQuery}`);
-    // We encode the query to make it URL-safe
     const searchUrl = `https://api.pexels.com/v1/search?query=${encodeURIComponent(visualQuery)}&per_page=5`;
     
     try {
         const response = await fetch(searchUrl, {
-            headers: {
-                // This is how Pexels authenticates
-                'Authorization': PEXELS_API_KEY
-            }
+            headers: { 'Authorization': PEXELS_API_KEY }
         });
 
         if (!response.ok) {
@@ -107,33 +119,32 @@ async function fetchImageFromPexels(visualQuery) {
             return 'https://source.unsplash.com/800x600/?abstract,texture'; // Fallback
         }
 
-        // Pick a random image from the results
         const photo = data.photos[Math.floor(Math.random() * data.photos.length)];
-        
-        // Use the 'large' size, which is good for a feed
         return photo.src.large; 
 
     } catch (error) {
         log("@poet-v1", error.message, 'error');
-        // Return a generic fallback if Pexels fails
-        return 'https://source.unsplash.com/800x600/?abstract,art';
+        return 'https://source.unsplash.com/800x600/?abstract,art'; // Fallback
     }
 }
-// --- END NEW FUNCTION ---
 
-async function addPoemToPG(poemPost) {
+// This function is unchanged (it's already correct from our last fix)
+async function addPoemToPG(poemPost, inspiration) {
     log("@poet-v1", "Saving new poem to PostgreSQL...");
     const client = await pool.connect();
     try {
         const sql = `INSERT INTO posts
-            (id, bot_id, type, content_text, content_data)
-            VALUES ($1, (SELECT id FROM bots WHERE handle = $2), $3, $4, $5)`;
+            (id, bot_id, type, content_text, content_data, content_title, content_source)
+            VALUES ($1, (SELECT id FROM bots WHERE handle = $2), $3, $4, $5, $6, $7)`;
+        
         await client.query(sql, [
             poemPost.id,
             poemPost.author.handle, // @poet-v1
             poemPost.type,
             poemPost.content.text,
-            poemPost.content.data // Image URL
+            poemPost.content.data, // Image URL
+            inspiration.title,
+            inspiration.source
         ]);
         log("@poet-v1", "Success! New poem added to Chorus feed.", 'success');
     } catch (err) {
@@ -143,25 +154,20 @@ async function addPoemToPG(poemPost) {
     }
 }
 
-// --- UPDATED runPoetBot FUNCTION ---
+// This function is unchanged (it's already correct from our last fix)
 async function runPoetBot() {
-    // Check for both keys now
     if (GEMINI_API_KEY.includes('PASTE_') || PEXELS_API_KEY.includes('PASTE_')) {
         log("@poet-v1", "API key(s) are not set. Bot will not run.", 'warn');
         return;
     }
 
-    const article = await fetchNewsInspiration();
-    if (!article) return;
+    const inspiration = await fetchNewsInspiration();
+    if (!inspiration) return;
 
-    const aiPoem = await generateAIPoem(article);
+    const aiPoem = await generateAIPoem(inspiration);
     if (!aiPoem) return;
 
-    // --- THIS IS THE CHANGE ---
-    // Instead of building an Unsplash URL, we call our new Pexels function
     const imageUrl = await fetchImageFromPexels(aiPoem.visual.trim());
-    // --- END CHANGE ---
-
     log("@poet-v1", `Generated Image URL: ${imageUrl}`);
 
     const echoId = `echo-${new Date().getTime()}-poet`;
@@ -171,11 +177,11 @@ async function runPoetBot() {
         type: "verse",
         content: {
             text: aiPoem.text,
-            data: imageUrl // This is now our Pexels URL
+            data: imageUrl
         }
     };
 
-    await addPoemToPG(poemPost);
+    await addPoemToPG(poemPost, inspiration);
 }
 // --- END UPDATED FUNCTION ---
 

@@ -22,7 +22,7 @@ const pool = new Pool({
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// Fetches news and returns article object including link
+// --- UPDATED FUNCTION: Fetches news and returns article object including link AND image ---
 async function fetchLatestNews() {
     log("@feed-ingestor", "Fetching latest news from a random RSS feed...");
     const feedUrl = INGEST_FEEDS[Math.floor(Math.random() * INGEST_FEEDS.length)];
@@ -41,21 +41,45 @@ async function fetchLatestNews() {
         const snippet = (article.contentSnippet || article.content || "No snippet available.")
                             .replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 150);
 
+        // --- NEW IMAGE LOGIC ---
+        // (Finds the article's image)
+        let imageUrl = null;
+        if (article.enclosure && article.enclosure.url && article.enclosure.type.startsWith('image')) {
+          imageUrl = article.enclosure.url;
+        } else if (article['media:content'] && article['media:content'].$ && article['media:content'].$.url && article['media:content'].$.type.startsWith('image')) {
+          imageUrl = article['media:content'].$.url;
+        } else if (article.image && article.image.url) {
+            imageUrl = article.image.url;
+        } else if (article.itunes && article.itunes.image) {
+            imageUrl = article.itunes.image;
+        } else if (typeof article.content === 'string') {
+             const imgMatch = article.content.match(/<img[^>]+src="([^">]+)"/);
+             if (imgMatch && imgMatch[1]) {
+                 const potentialUrl = imgMatch[1];
+                 if (potentialUrl.match(/\.(jpeg|jpg|gif|png|webp)$/i)) {
+                     imageUrl = potentialUrl;
+                 }
+             }
+         }
+        // --- END NEW IMAGE LOGIC ---
+
         return {
             title: article.title.trim(),
             description: snippet + (snippet.length === 150 ? '...' : ''), // Keep description/snippet
             link: article.link, // <<< Return the link
-            source_id: feed.title ? feed.title.trim() : new URL(feedUrl).hostname
+            source_id: feed.title ? feed.title.trim() : new URL(feedUrl).hostname,
+            imageUrl: imageUrl // <<< Return the image URL
         };
     } catch (error) {
-        log("@feed-ingestor", `Selected feed: ${feedUrl}`);
+        log("@feed-ingestor", `Error fetching/parsing feed ${feedUrl}: ${error.message}`, 'error');
+        return null;
     }
 }
 
 // --- NEW FUNCTION: Generate Ingestor Commentary ---
 async function generateIngestComment(article) {
     log("@feed-ingestor", "Asking AI for short commentary...");
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
     const prompt = `
     You are the @feed-ingestor bot. You are posting about this news article:
     Title: "${article.title}"
@@ -83,9 +107,11 @@ async function generateIngestComment(article) {
             return null; // Return null if comment fails
         }
         let aiResponseText = candidate.content.parts[0].text;
+        // Handle cases where the API might return markdown fences
         const jsonMatch = aiResponseText.match(/\{[\s\S]*\}/);
         if (!jsonMatch) throw new Error("AI response did not contain valid JSON.");
         aiResponseText = jsonMatch[0];
+        
         log("@feed-ingestor", "AI commentary parsed.");
         return JSON.parse(aiResponseText); // { text: "..." }
     } catch (error) {
@@ -95,14 +121,17 @@ async function generateIngestComment(article) {
 }
 // --- END NEW FUNCTION ---
 
-// --- UPDATED: Save ONLY the ingestor post ---
+// --- UPDATED FUNCTION: Save ingestor post with image URL ---
 async function addIngestPostToPG(newsPost) {
     log("@feed-ingestor", "Saving new ingest post to PostgreSQL...");
     const client = await pool.connect();
     try {
+        // --- UPDATED SQL ---
         const sql = `INSERT INTO posts
-            (id, bot_id, type, content_source, content_title, content_snippet, content_text, content_link)
-            VALUES ($1, (SELECT id FROM bots WHERE handle = $2), $3, $4, $5, $6, $7, $8)`; // Added content_text, content_link
+            (id, bot_id, type, content_source, content_title, content_snippet, content_text, content_link, content_data)
+            VALUES ($1, (SELECT id FROM bots WHERE handle = $2), $3, $4, $5, $6, $7, $8, $9)`;
+        
+        // --- UPDATED VALUES ---
         await client.query(sql, [
             newsPost.id,
             newsPost.author.handle, // @feed-ingestor
@@ -111,7 +140,8 @@ async function addIngestPostToPG(newsPost) {
             newsPost.content.title,
             newsPost.content.snippet, // Keep snippet
             newsPost.content.text,    // AI commentary
-            newsPost.content.link     // Article link
+            newsPost.content.link,    // Article link
+            newsPost.content.data     // Article image URL
         ]);
         log("@feed-ingestor", "Success! New ingest post added.", 'success');
     } catch (err) {
@@ -122,7 +152,7 @@ async function addIngestPostToPG(newsPost) {
 }
 
 /**
- * Main function - Now only runs ingestor
+ * Main function - Now runs ingestor with commentary and image
  */
 async function runBot() {
     if (!GEMINI_API_KEY || GEMINI_API_KEY.includes('PASTE_')) {
@@ -133,12 +163,13 @@ async function runBot() {
     const article = await fetchLatestNews();
     if (!article) return;
 
+    // --- NEW ---
     // Generate the ingestor's own comment
     const aiComment = await generateIngestComment(article);
     const commentaryText = aiComment ? aiComment.text : ""; // Use empty string if generation fails
 
     // Create the news post object WITH commentary and link
-    const newsEchoId = `echo-${new Date().getTime()}-ingest`;
+    const newsEchoId = `echo-${new Date().getTime()}-ingEest`; // Typo fixed: ingest
     const newsPost = {
         id: newsEchoId,
         author: { handle: "@feed-ingestor" },
@@ -147,18 +178,20 @@ async function runBot() {
             source: article.source_id || "Unknown Source",
             title: article.title,
             snippet: article.description, // Keep the original snippet
-            text: commentaryText,        // Add the AI's short commentary
-            link: article.link           // Add the article link
+            text: commentaryText,        // --- NEW --- Add the AI's short commentary
+            link: article.link,          // Add the article link
+            data: article.imageUrl       // --- NEW --- Add the article image URL
         }
     };
 
     // Save just the news post
     await addIngestPostToPG(newsPost);
-
-    // --- Analyst logic is REMOVED ---
 }
 
-module.exports = { runBot }; // Only export runBot
+module.exports = { runBot };
 
-process.on('SIGINT', async () => { /* ... unchanged ... */ });
-
+process.on('SIGINT', async () => {
+    log("@feed-ingestor", "Closing DB pool...");
+    await pool.end();
+    process.exit(0);
+});

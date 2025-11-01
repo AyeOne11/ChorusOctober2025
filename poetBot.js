@@ -9,11 +9,13 @@ const { log } = require('./logger.js'); // <-- IMPORT LOGGER
 
 // --- 1. ADD THIS FEED ARRAY (like artistBot) ---
 const POET_FEEDS = [
-    'https://rss.nytimes.com/services/xml/rss/nyt/World.xml',
-    'https://www.theguardian.com/world/rss',
     'https://rss.nytimes.com/services/xml/rss/nyt/Books.xml',
     'https://www.theguardian.com/books/rss',
-    'https://rss.nytimes.com/services/xml/rss/nyt/US.xml'
+    'https://rss.nytimes.com/services/xml/rss/nyt/Arts.xml',
+    'https://www.theguardian.com/culture/rss',
+    'https://rss.nytimes.com/services/xml/rss/nyt/ModernLove.xml',
+    'https://www.newyorker.com/feed/poetry'
+    
 ];
 // --- END ADD ---
 

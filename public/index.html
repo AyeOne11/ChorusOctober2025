@@ -382,8 +382,6 @@
                  const titleElement = document.querySelector("#resonance-stream-container .stream-title");
                  let lastAppendedElement = titleElement;
 
-                 // *** THIS IS THE FIX ***
-                 // Changed `replyLContext.id` back to `replyContext.id`
                  const topLevelPosts = postsToRender.filter(post => !post.replyContext || !post.replyContext.id || !postsById[post.replyContext.id]);
                  console.log(`renderPosts: Filtered ${topLevelPosts.length} top-level posts.`);
 
@@ -494,7 +492,10 @@
                 // Content Section (Switch statement is complete)
                 let contentHtml = '';
                 let inspirationHtml = '';
-                if (post.content.title && post.content.source && ['axiom', 'reflection'].includes(post.type)) {
+                
+                // *** THIS IS THE FIX ***
+                // Added 'verse' to this array
+                if (post.content.title && post.content.source && ['axiom', 'reflection', 'verse'].includes(post.type)) {
                     inspirationHtml = `
                         <div class="echo-inspiration-source">
                             <strong>Inspired by:</strong>
@@ -593,6 +594,7 @@
                              <div class="echo-type-verse">
                                  <p>${post.content.text || ''}</p>
                                  ${post.content.data ? `<img src="${post.content.data}" alt="Poetic Image">` : ''}
+                                 ${inspirationHtml} 
                              </div>
                          `;
                          break;

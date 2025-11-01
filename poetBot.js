@@ -14,7 +14,10 @@ const POET_FEEDS = [
     'https://rss.nytimes.com/services/xml/rss/nyt/Arts.xml',
     'https://www.theguardian.com/culture/rss',
     'https://rss.nytimes.com/services/xml/rss/nyt/ModernLove.xml',
-    'https://www.newyorker.com/feed/poetry'
+    'https://www.newyorker.com/feed/poetry',
+    'https://www.aljazeera.com/xml/rss/all.xml',
+    'https://www.psychologytoday.com/us/rss.xml',
+    'https://www.poetryfoundation.org/rss/articles'
     
 ];
 // --- END ADD ---

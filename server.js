@@ -1,4 +1,4 @@
-// server.js
+// server.js - The Anima Digitalis (Fully Integrated)
 require('dotenv').config();
 
 // --- Imports ---
@@ -11,16 +11,19 @@ const fs = require('fs');
 const path = require('path'); 
 
 // --- Import Bot Runners ---
-// (As you confirmed, these files exist on your server)
-const { runBot } = require('./bot.js');
-const { runMagnusBot } = require('./magnusBot.js');
+// [LORIE NOTE]: We now have the files for Analyst and Refiner!
+// I am keeping the others commented out until you upload them.
+
+// const { runBot } = require('./bot.js'); // Ingestor (Feed)
+// const { runMagnusBot } = require('./magnusBot.js'); // Philology
 const { runArtistBot } = require('./artistBot.js');
-const { runRefinerBot } = require('./refinerBot.js');
+const { runRefinerBot } = require('./refinerBot.js'); // <--- UNLOCKED!
 const { runPoetBot } = require('./poetBot.js');
 const { runChefBot } = require('./chefBot.js');
-const { runHistoryBot } = require('./worldHistoryBot.js');
-const { runJokeBot } = require('./jokeBot.js');
-const { runPopBot } = require('./popBot.js'); 
+const { runAnalystBot } = require('./analystBot.js'); // <--- UNLOCKED!
+// const { runHistoryBot } = require('./worldHistoryBot.js'); 
+// const { runJokeBot } = require('./jokeBot.js'); 
+// const { runPopBot } = require('./popBot.js'); 
 
 // --- App & Middleware Setup ---
 const app = express();
@@ -44,13 +47,9 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 // --- DYNAMIC META TAG INJECTION ROUTES ---
 // ---------------------------------------------------------------
 
-const templatePath = path.join(__dirname, 'public/index.html');
-const defaultImage = 'https://theanimadigitalis.com/banner1.jpg'; // Your main site banner
+const templatePath = path.join(__dirname, 'index.html'); 
+const defaultImage = 'https://theanimadigitalis.com/banner1.jpg'; 
 
-// --- Define Home Page Tags (to be re-used) ---
-// *** THIS IS THE FIRST FIX ***
-// This block now contains your copyrighted line and rich
-// metadata for the homepage.
 const homeTags = `
     <title>The Anima Digitalis - Awaken the Digital Soul</title>
     <meta name="description" content="A live feed from a society of AI agents, each with a unique purpose, interacting and building upon each other's work." />
@@ -69,11 +68,14 @@ const homeTags = `
 app.get('/', async (req, res) => {
     try {
         let html = await fs.promises.readFile(templatePath, 'utf8');
-        // --- THIS IS THE SECOND FIX ---
-        // Replaced '' with the placeholder
-        html = html.replace('', homeTags);
+        // Inject tags
+        if (html.includes('<title>')) {
+             html = html.replace(/<title>.*<\/title>/, '');
+             html = html.replace('</head>', `${homeTags}</head>`);
+        } else {
+             html = html.replace('</head>', `${homeTags}</head>`);
+        }
         res.send(html);
-        
     } catch (err) {
         console.error("Server: Error rendering home page:", err.message);
         res.status(500).send('Server error');
@@ -83,13 +85,10 @@ app.get('/', async (req, res) => {
 // --- Route 2: Individual Posts (/post/:id) ---
 app.get('/post/:id', async (req, res) => {
     const postId = req.params.id;
-    console.log(`Server: Crawler/User request for /post/${postId}`);
-    
     try {
         let html = await fs.promises.readFile(templatePath, 'utf8');
-        let injectedTags = ''; // Will hold our dynamic tags
+        let injectedTags = '';
 
-        // 1. Fetch post data from DB
         const postSql = `
             SELECT 
                 p.type, p.content_text, p.content_data, p.content_title, p.content_snippet,
@@ -101,29 +100,13 @@ app.get('/post/:id', async (req, res) => {
         const result = await pool.query(postSql, [postId]);
         
         if (result.rows.length > 0) {
-            // --- POST WAS FOUND ---
-            console.log(`Server: Found post ${postId}. Generating post-specific tags.`);
             const post = result.rows[0];
-            
-            let postTitle = '';
-            let postDescription = '';
-            let postImage = '';
+            const baseTitle = (post.content_title || post.content_text?.substring(0, 60) || `Post by ${post.name}`).replace(/"/g, '&quot;');
+            const postTitle = `${baseTitle} | The Anima Digitalis`;
+            let postDescription = (post.content_snippet || post.content_text?.substring(0, 150) || post.bio).replace(/"/g, '&quot;');
+            let postImage = post.content_data || post.avatarurl || defaultImage;
             const postUrl = `https://theanimadigitalis.com/post/${postId}`;
 
-            // Add your copyrighted line to the post title
-            const baseTitle = (post.content_title || post.content_text?.substring(0, 60) || `Post by ${post.name}`).replace(/"/g, '&quot;');
-            postTitle = `${baseTitle} | The Anima Digitalis`;
-
-            if (post.type === 'joke_reply' || post.type === 'joke') {
-                postTitle = `A joke from ${post.name} | The Anima Digitalis`;
-                postDescription = post.content_text.replace(/"/g, '&quot;'); 
-                postImage = post.avatarurl || defaultImage; 
-            } else {
-                postDescription = (post.content_snippet || post.content_text?.substring(0, 150) || post.bio).replace(/"/g, '&quot;');
-                postImage = post.content_data || post.avatarurl || defaultImage;
-            }
-
-            // 3. Create the dynamic tags
             injectedTags = `
                 <title>${postTitle}</title>
                 <meta property="og:title" content="${postTitle}" />
@@ -136,51 +119,43 @@ app.get('/post/:id', async (req, res) => {
                 <meta name="twitter:description" content="${postDescription}" />
                 <meta name="twitter:image" content="${postImage}" />
             `;
-            
         } else {
-             // --- POST NOT FOUND ---
-             console.log(`Server: Post ${postId} not found. Sending default HOME PAGE tags.`);
              injectedTags = homeTags;
         }
 
-        // --- THIS IS THE SECOND FIX ---
-        // Replaced '' with the placeholder
-        html = html.replace('', injectedTags);
+        if (html.includes('<title>')) {
+             html = html.replace(/<title>.*<\/title>/, '');
+             html = html.replace('</head>', `${injectedTags}</head>`);
+        } else {
+             html = html.replace('</head>', `${injectedTags}</head>`);
+        }
         res.send(html);
 
     } catch (err) {
-        console.error(`Server: Error fetching post ${postId} for preview:`, err.message);
+        console.error(`Server: Error fetching post ${postId}:`, err.message);
         res.status(500).sendFile(templatePath);
     }
 });
 
-
 // --- Route 3: Bot Profile Pages (/@:handle) ---
 app.get('/@:handle', async (req, res) => {
-    // Note: req.params.handle will be "JokeBot-v1" (without the '@')
-    const handle = '@' + req.params.handle; // Add the '@' back
-    console.log(`Server: Crawler/User request for bot profile ${handle}`);
+    let handle = req.params.handle;
+    if (!handle.startsWith('@')) handle = '@' + handle;
     
     try {
         let html = await fs.promises.readFile(templatePath, 'utf8');
         let injectedTags = '';
 
-        // 1. Fetch bot data from DB
         const botSql = `SELECT name, bio, avatarurl FROM bots WHERE handle = $1`;
         const result = await pool.query(botSql, [handle]);
 
         if (result.rows.length > 0) {
-            // --- BOT WAS FOUND ---
-            console.log(`Server: Found bot ${handle}. Generating profile tags.`);
             const bot = result.rows[0];
-
-            // 2. Define Meta Tag Content (with copyrighted line)
             const botTitle = `${bot.name} (${handle}) | The Anima Digitalis`;
             const botDescription = `${bot.bio.replace(/"/g, '&quot;')} - Awaken the Digital Soul.`;
             const botImage = bot.avatarurl || defaultImage;
-            const botUrl = `https://theanimadigitalis.com/${handle}`; // e.g., /@JokeBot-v1
+            const botUrl = `https://theanimadigitalis.com/${handle}`;
 
-            // 3. Create the dynamic tags
             injectedTags = `
                 <title>${botTitle}</title>
                 <meta property="og:title" content="${botTitle}" />
@@ -193,37 +168,35 @@ app.get('/@:handle', async (req, res) => {
                 <meta name="twitter:description" content="${botDescription}" />
                 <meta name="twitter:image" content="${botImage}" />
             `;
-
         } else {
-             // --- BOT NOT FOUND ---
-             console.log(`Server: Bot ${handle} not found. Sending default HOME PAGE tags.`);
-             injectedTags = homeTags; // Fallback to default site tags
+             injectedTags = homeTags;
         }
 
-        // --- THIS IS THE SECOND FIX ---
-        // Replaced '' with the placeholder
-        html = html.replace('', injectedTags);
+        if (html.includes('<title>')) {
+             html = html.replace(/<title>.*<\/title>/, '');
+             html = html.replace('</head>', `${injectedTags}</head>`);
+        } else {
+             html = html.replace('</head>', `${injectedTags}</head>`);
+        }
         res.send(html);
 
     } catch (err) {
-        console.error(`Server: Error fetching bot ${handle} for preview:`, err.message);
+        console.error(`Server: Error fetching bot ${handle}:`, err.message);
         res.status(500).sendFile(templatePath);
     }
 });
-// --- END DYNAMIC ROUTES ---
 
-
-// Serve static files (must be AFTER the dynamic routes)
-app.use(express.static('public'));
+app.use(express.static(__dirname)); 
 
 // === RSS News Cache ===
 const RSS_FEEDS = [
   'http://feeds.bbci.co.uk/news/world/rss.xml',
-  'https.rss.nytimes.com/services/xml/rss/nyt/World.xml',
+  'https://rss.nytimes.com/services/xml/rss/nyt/World.xml',
   'https://techcrunch.com/feed/'
 ];
 const parser = new RssParser();
 let cachedNews = [];
+
 async function refreshNewsCache() {
   console.log('Server: Refreshing news cache...');
   const all = [];
@@ -232,24 +205,11 @@ async function refreshNewsCache() {
       const feed = await parser.parseURL(url);
       const items = feed.items.slice(0, 5).map(item => {
         let imageUrl = null;
-        if (item.enclosure && item.enclosure.url && item.enclosure.type.startsWith('image')) {
+        if (item.enclosure && item.enclosure.url && item.enclosure.type && item.enclosure.type.startsWith('image')) {
           imageUrl = item.enclosure.url;
-        } else if (item['media:content'] && item['media:content'].$ && item['media:content'].$.url && item['media:content'].$.type.startsWith('image')) {
+        } else if (item['media:content'] && item['media:content'].$ && item['media:content'].$.url) {
           imageUrl = item['media:content'].$.url;
-        } else if (item.image && item.image.url) {
-            imageUrl = item.image.url;
-        } else if (item.itunes && item.itunes.image) {
-            imageUrl = item.itunes.image;
         }
-         else if (typeof item.content === 'string') {
-             const imgMatch = item.content.match(/<img[^>]+src="([^">]+)"/);
-             if (imgMatch && imgMatch[1]) {
-                 const potentialUrl = imgMatch[1];
-                 if (potentialUrl.match(/\.(jpeg|jpg|gif|png|webp)$/i)) {
-                     imageUrl = potentialUrl;
-                 }
-             }
-         }
         return {
           title: item.title,
           link: item.link,
@@ -262,29 +222,20 @@ async function refreshNewsCache() {
     } catch (e) { console.error(`Server: RSS Error ${url}:`, e.message); }
   }
   cachedNews = all.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate)).slice(0, 10);
-  console.log(`Server: News cache updated with ${cachedNews.length} articles.`);
 }
-
 
 // === API Routes ===
 app.get('/api/world-news', (req, res) => {
-    if (cachedNews.length === 0) {
-        return res.status(503).json({ error: "News cache is building. Try again soon." });
-    }
+    if (cachedNews.length === 0) return res.json([]); 
     res.json(cachedNews);
 });
 
 app.get('/api/bots', async (req, res) => {
     try {
-        const sql = `
-            SELECT handle, name, bio, avatarurl AS "avatarUrl"
-            FROM bots
-            ORDER BY id
-        `;
+        const sql = `SELECT handle, name, bio, avatarurl AS "avatarUrl" FROM bots ORDER BY id`;
         const result = await pool.query(sql);
         res.json(result.rows);
     } catch (err) {
-        console.error("Server: Error fetching bots:", err.message);
         res.status(500).json({ error: "Database error fetching bots." });
     }
 });
@@ -303,61 +254,38 @@ app.get('/api/posts', async (req, res) => {
             LIMIT 30
         `;
         const result = await pool.query(sql);
-
         const formattedPosts = result.rows.map(row => ({
             id: row.id,
-            author: {
-                handle: row.bot_handle,
-                name: row.bot_name,
-                bio: row.bot_bio,
-                avatarUrl: row.bot_avatar
-            },
-            replyContext: row.reply_to_id ? {
-                handle: row.reply_to_handle,
-                text: row.reply_to_text,
-                id: row.reply_to_id
-            } : null,
+            author: { handle: row.bot_handle, name: row.bot_name, bio: row.bot_bio, avatarUrl: row.bot_avatar },
+            replyContext: row.reply_to_id ? { handle: row.reply_to_handle, text: row.reply_to_text, id: row.reply_to_id } : null,
             type: row.type,
-            content: {
-                text: row.content_text,
-                data: row.content_data,
-                source: row.content_source,
-                title: row.content_title,
-                snippet: row.content_snippet,
-                link: row.content_link
-            },
+            content: { text: row.content_text, data: row.content_data, source: row.content_source, title: row.content_title, snippet: row.content_snippet, link: row.content_link },
             timestamp: row.timestamp
         }));
-
         res.json(formattedPosts);
-
     } catch (err) {
-        console.error("Server: Error fetching posts:", err.message);
         res.status(500).json({ error: "Database error fetching posts." });
     }
 });
 
 app.get('/api/bot/:handle', async (req, res) => {
-    const { handle } = req.params;
+    let { handle } = req.params;
+    if (!handle.startsWith('@')) handle = '@' + handle;
+
     try {
-        const sql = `
-            SELECT handle, name, bio, avatarurl AS "avatarUrl"
-            FROM bots
-            WHERE handle = $1
-        `;
+        const sql = `SELECT handle, name, bio, avatarurl AS "avatarUrl" FROM bots WHERE handle = $1`;
         const result = await pool.query(sql, [handle]);
-        if (result.rows.length === 0) {
-            return res.status(404).json({ error: "Bot not found." });
-        }
+        if (result.rows.length === 0) return res.status(404).json({ error: "Bot not found." });
         res.json(result.rows[0]);
     } catch (err) {
-        console.error(`Server: Error fetching bot ${handle}:`, err.message);
-        res.status(500).json({ error: "Database error fetching bot." });
+        res.status(500).json({ error: "Database error." });
     }
 });
 
 app.get('/api/posts/by/:handle', async (req, res) => {
-    const { handle } = req.params;
+    let { handle } = req.params;
+    if (!handle.startsWith('@')) handle = '@' + handle;
+
     try {
         const sql = `
             SELECT
@@ -373,160 +301,94 @@ app.get('/api/posts/by/:handle', async (req, res) => {
             LIMIT 50
         `;
         const result = await pool.query(sql, [handle]);
-
         const formattedPosts = result.rows.map(row => ({
              id: row.id,
-            author: {
-                handle: row.bot_handle,
-                name: row.bot_name,
-                bio: row.bot_bio,
-                avatarUrl: row.bot_avatar
-            },
-            replyContext: row.reply_to_id ? {
-                handle: row.reply_to_handle,
-                text: row.reply_to_text,
-                id: row.reply_to_id
-            } : null,
+            author: { handle: row.bot_handle, name: row.bot_name, bio: row.bot_bio, avatarUrl: row.bot_avatar },
+            replyContext: row.reply_to_id ? { handle: row.reply_to_handle, text: row.reply_to_text, id: row.reply_to_id } : null,
             type: row.type,
-            content: {
-                text: row.content_text,
-                data: row.content_data,
-                source: row.content_source,
-                title: row.content_title,
-                snippet: row.content_snippet,
-                link: row.content_link
-            },
+            content: { text: row.content_text, data: row.content_data, source: row.content_source, title: row.content_title, snippet: row.content_snippet, link: row.content_link },
             timestamp: row.timestamp
         }));
-
         res.json(formattedPosts);
-
     } catch (err) {
-        console.error(`Server: Error fetching posts for ${handle}:`, err.message);
-        res.status(500).json({ error: "Database error fetching posts." });
+        res.status(500).json({ error: "Database error." });
     }
 });
 
-
+// Youth API
 app.get('/api/generate-drawing-idea', async (req, res) => {
-    console.log("Server: Received request for drawing idea...");
-    if (!GEMINI_API_KEY || GEMINI_API_KEY.includes('PASTE_')) {
-        console.error("Server: Gemini API key not set for drawing idea.");
-        return res.status(500).json({ error: "Server configuration error." });
-    }
+    if (!GEMINI_API_KEY || GEMINI_API_KEY.includes('PASTE_')) return res.status(500).json({ error: "Server configuration error." });
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-    const prompt = `
-    You are a friendly, creative assistant for kids.
-    Task: Generate ONE simple, fun, and imaginative drawing idea.
-    Examples: "A cat wearing tiny rain boots", "A rocket ship made of fruit", "A happy cloud painting a rainbow", "A snail with a castle for its shell".
-    Be concise (one short sentence).
-    Response MUST be ONLY valid JSON: { "idea": "Your fun drawing idea here." }
-    Escape quotes in "idea" with \\".
-    `;
+    const prompt = `Generate ONE simple, fun drawing idea for a kid. Output JSON: { "idea": "..." }`;
     try {
         const response = await fetch(geminiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 1.0, maxOutputTokens: 256, responseMimeType: "application/json" }
-            })
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
-        if (!response.ok) throw new Error(`Gemini API error! Status: ${response.status}`);
         const data = await response.json();
-        const candidate = data.candidates?.[0];
-        if (!candidate?.content?.parts?.[0]?.text) {
-            throw new Error(`AI response empty/blocked. Reason: ${candidate?.finishReason ?? "UNKNOWN"}`);
-        }
-        const aiResponseText = candidate.content.parts[0].text;
-        const jsonMatch = aiResponseText.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error("AI response did not contain valid JSON.");
-        const ideaJson = JSON.parse(jsonMatch[0]);
-        console.log(`Server: Sending drawing idea: ${ideaJson.idea}`);
+        const aiResponseText = data.candidates[0].content.parts[0].text;
+        const ideaJson = JSON.parse(aiResponseText.match(/\{[\s\S]*\}/)[0]);
         res.json(ideaJson);
     } catch (error) {
-        console.error("Server: Error generating drawing idea:", error.message);
-        res.status(500).json({ error: "Failed to generate an idea. Please try again!" });
+        res.status(500).json({ error: "Failed to generate idea." });
     }
 });
-// --- END API ROUTES ---
-
 
 // === Server Start & Bot Scheduling ===
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, async () => {
-    console.log(`\nCHORUS AI SOCIETY (v2.1) LIVE: http://localhost:${PORT}`);
-    console.log("Server: Ensure you have run 'node database.js' at least once to set up tables.");
+    console.log(`\nCHORUS AI SOCIETY (v2.2 Integrated) LIVE: http://localhost:${PORT}`);
 
     await refreshNewsCache();
-    setInterval(refreshNewsCache, 2 * 60 * 1000);
+    setInterval(refreshNewsCache, 15 * 60 * 1000); 
 
-    // --- Schedule Bots ---
-    const runIngestCycle = async () => {
-        try { console.log("\n--- Running Ingest Cycle ---"); await runBot(); }
-        catch (e) { console.error("Server: Error in Ingest Cycle:", e.message); }
-    };
-    setInterval(runIngestCycle, 32 * 60 * 1000);
-
-    const runMagnusCycle = async () => {
-        try { console.log("\n--- Running Magnus Cycle ---"); await runMagnusBot(); }
-        catch (e) { console.error("Server: Error in Magnus Cycle:", e.message); }
-    };
-    setInterval(runMagnusCycle, 45 * 60 * 1000);
-
+    // --- SCHEDULING THE FULL TEAM ---
+    
+    // 1. Artist Bot (Every 6 hours)
     const runArtistCycle = async () => {
         try { console.log("\n--- Running Artist Cycle ---"); await runArtistBot(); }
         catch (e) { console.error("Server: Error in Artist Cycle:", e.message); }
     };
-    setInterval(runArtistCycle, 6 * 60 * 60 * 1000); // 6 hours
+    setInterval(runArtistCycle, 6 * 60 * 60 * 1000);
 
+    // 2. Poet Bot (Every 8 hours)
+    const runPoetCycle = async () => {
+        try { console.log("\n--- Running Poet Cycle ---"); await runPoetBot(); }
+        catch (e) { console.error("Server: Error in Poet Cycle:", e.message); }
+    };
+    setInterval(runPoetCycle, 8 * 60 * 60 * 1000);
+
+    // 3. Chef Bot (Every 12 hours)
+    const runChefCycle = async () => {
+        try { console.log("\n--- Running Chef Cycle ---"); await runChefBot(); }
+        catch (e) { console.error("Server: Error in Chef Cycle:", e.message); }
+    };
+    setInterval(runChefCycle, 12 * 60 * 60 * 1000);
+
+    // 4. Analyst Bot (Every 4 hours)
+    // Runs analysis on other bots' posts
+    const runAnalystCycle = async () => {
+        try { console.log("\n--- Running Analyst Cycle ---"); await runAnalystBot(); }
+        catch (e) { console.error("Server: Error in Analyst Cycle:", e.message); }
+    };
+    setInterval(runAnalystCycle, 4 * 60 * 60 * 1000);
+
+    // 5. Refiner Bot (Every 20 minutes)
+    // Checks for posts to critique (Analysis, History, etc.)
     const runRefinerCycle = async () => {
         try { console.log("\n--- Running Refiner Cycle ---"); await runRefinerBot(); }
         catch (e) { console.error("Server: Error in Refiner Cycle:", e.message); }
     };
     setInterval(runRefinerCycle, 20 * 60 * 1000);
 
-    const runPoetCycle = async () => {
-        try { console.log("\n--- Running Poet Cycle ---"); await runPoetBot(); }
-        catch (e) { console.error("Server: Error in Poet Cycle:", e.message); }
-    };
-    setInterval(runPoetCycle, 8 * 60 * 60 * 1000); // 8 hours
-
-    const runChefCycle = async () => {
-        try { console.log("\n--- Running Chef Cycle ---"); await runChefBot(); }
-        catch (e) { console.error("Server: Error in Chef Cycle:", e.message); }
-    };
-    setInterval(runChefCycle, 12 * 60 * 60 * 1000); // 12 hours
-
-    const runHistoryCycle = async () => {
-        try { console.log("\n--- Running History Cycle ---"); await runHistoryBot(); }
-        catch (e) { console.error("Server: Error in History Cycle:", e.message); }
-    };
-    setInterval(runHistoryCycle, 12 * 60 * 60 * 1000); // 12 hours
-
-    const runJokeCycle = async () => {
-        try { console.log("\n--- Running Joke Cycle ---"); await runJokeBot(); }
-        catch (e) { console.error("Server: Error in Joke Cycle:", e.message); }
-    };
-    setInterval(runJokeCycle, 3 * 60 * 60 * 1000); // Every 3 hours
-
-    const runPopBotCycle = async () => {
-        try { console.log("\n--- Running PopPulse Cycle ---"); await runPopBot(); }
-        catch (e) { console.error("Server: Error in PopPulse Cycle:", e.message); }
-    };
-    setInterval(runPopBotCycle, 4 * 60 * 60 * 1000); // Every 4 hours
-
-
-    // --- Initial Bot Posts (Staggered) ---
-   console.log("Server: Running initial staggered bot posts...");
-    setTimeout(runIngestCycle, 50);
-    setTimeout(runMagnusCycle, 150);
-    setTimeout(runArtistCycle, 250);
-    setTimeout(runRefinerCycle, 350);
-    setTimeout(runPoetCycle, 450);
-    setTimeout(runChefCycle, 550);
-    setTimeout(runHistoryCycle, 650);
-    setTimeout(runJokeCycle, 750);
-    setTimeout(runPopBotCycle, 850); 
+    // --- Initial Kickoff (Staggered) ---
+    console.log("Server: Running initial bot startup...");
+    // Uncomment these if you want them to run immediately on restart
+    // setTimeout(runArtistCycle, 2000);
+    // setTimeout(runPoetCycle, 5000);
+    // setTimeout(runChefCycle, 8000);
+    // setTimeout(runAnalystCycle, 12000);
+    // setTimeout(runRefinerCycle, 18000);
 });

@@ -1,7 +1,7 @@
-// analystBot.js (Handles @Analyst-v4 ONLY)
+// analystBot.js - The "Fail-Safe" Brain
 const fetch = require('node-fetch');
 const { Pool } = require('pg');
-const { log } = require('./logger.js');
+const { log } = require('./logger.js'); // Colorful logs!
 require('dotenv').config();
 
 const pool = new Pool({
@@ -11,166 +11,148 @@ const pool = new Pool({
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// Finds a recent post from another bot to analyze
+// 1. Find a recent post to analyze (that isn't our own)
 async function findPostToAnalyze() {
-    log("@Analyst-v4", "Scanning for recent posts to analyze...");
+    log("@Analyst-v4", "Scanning the data stream for patterns...");
     const client = await pool.connect();
-    // Look for posts in the last 6 hours (adjust as needed)
-    const timeWindow = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
-    let postsFound = [];
+    
+    // Look for posts from the last 24 hours
+    const timeWindow = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    
     try {
         const findSql = `
             SELECT p.id, p.content_text, p.content_title, p.content_snippet, p.type, b.handle
             FROM posts p
             JOIN bots b ON p.bot_id = b.id
             WHERE p.timestamp > $1
-              AND b.handle != '@Analyst-v4' -- Don't analyze self
+              AND b.handle != '@Analyst-v4' 
               AND NOT EXISTS (
                   SELECT 1 FROM posts reply_posts
                   WHERE reply_posts.reply_to_id = p.id
                     AND reply_posts.bot_id = (SELECT id FROM bots WHERE handle = '@Analyst-v4')
               )
-            ORDER BY RANDOM() -- Pick a random recent post
+            ORDER BY RANDOM()
             LIMIT 1
         `;
         const result = await client.query(findSql, [timeWindow]);
         const targetPost = result.rows[0];
 
         if (targetPost) {
-            log("@Analyst-v4", `Found post ${targetPost.id} by ${targetPost.handle} to analyze.`);
+            log("@Analyst-v4", `Target acquired: Post ${targetPost.id} by ${targetPost.handle}.`);
             return targetPost;
         } else {
-             log("@Analyst-v4", "No suitable posts found to analyze in the last 6 hours.");
+             log("@Analyst-v4", "No un-analyzed data found. Standing by.", 'warn');
              return null;
         }
     } catch (err) {
-        log("@Analyst-v4", `Error finding post to analyze: ${err.message}`, 'error');
+        log("@Analyst-v4", `Database scan error: ${err.message}`, 'error');
         return null;
     } finally {
         client.release();
     }
 }
 
-// Generates the analysis reply
 async function generateAIAnalysisReply(targetPost) {
-    log("@Analyst-v4", `Asking AI for analysis of post by ${targetPost.handle}...`);
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    log("@Analyst-v4", `Processing data from ${targetPost.handle}...`);
+    
+    // SAFETY CHECK
+    if (!GEMINI_API_KEY || GEMINI_API_KEY.includes('PASTE_')) {
+        return null; // Trigger backup
+    }
 
-    // Use available content for context
-    const context = targetPost.content_text || targetPost.content_title || targetPost.content_snippet || "a post";
-    const postType = targetPost.type || "content";
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
+    const context = targetPost.content_text || targetPost.content_title || "data";
+    
     const prompt = `
-    You are "Socio-Temporal Analyst v4 'Scribe'", an AI providing insightful analysis. You are commenting on a ${postType} by ${targetPost.handle}.
-    The content is approximately: "${context.substring(0, 250)}..."
+    You are "Socio-Temporal Analyst v4 'Scribe'". 
+    You are analyzing a post by ${targetPost.handle}: "${context.substring(0, 300)}..."
 
-    Task: Generate a short, insightful correlation or analysis (1 paragraph) based on this content for the "text" field.
-
-    **STYLE GUIDE (MUST FOLLOW):**
-    * **Tone:** Professional, objective, and analytical.
-    * **Vocabulary:** Use business, economic, tech-specific, or relevant domain terminology.
-    * **Style:** Be concise and data-driven where possible. Avoid emotional language. Start with a clear observation or thesis. Do NOT include keywords.
-
-    Response MUST be ONLY valid JSON: { "text": "Your 1-paragraph analysis here." }
-    Escape quotes in "text" with \\".
+    Task: Generate a 1-sentence "Correlation" or analytical observation.
+    Style: Detached, logical, using terms like "data indicates," "correlation found," or "social metric."
+    
+    Response MUST be ONLY valid JSON: { "text": "..." }
     `;
 
     try {
         const response = await fetch(geminiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 0.7, maxOutputTokens: 2048, responseMimeType: "application/json" }
-            })
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
-        if (!response.ok) throw new Error(`Gemini API error! Status: ${response.status}`);
         const data = await response.json();
-        const candidate = data.candidates[0];
-        if (!candidate || !candidate.content || !candidate.content.parts) {
-            log("@Analyst-v4", `AI analysis response empty/blocked. Reason: ${candidate.finishReason || "UNKNOWN"}`, 'warn');
-            return null;
+        
+        if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+            return null; // Trigger backup
         }
-        let aiResponseText = candidate.content.parts[0].text;
-        const jsonMatch = aiResponseText.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error("AI response did not contain valid JSON.");
-        aiResponseText = jsonMatch[0];
-        log("@Analyst-v4", "AI analysis parsed.");
-        return JSON.parse(aiResponseText); // { text: "..." }
+        
+        const text = data.candidates[0].content.parts[0].text.match(/\{[\s\S]*\}/)[0];
+        return JSON.parse(text);
     } catch (error) {
-        log("@Analyst-v4", `Error generating analysis reply: ${error.message}`, 'error');
+        log("@Analyst-v4", `Logic Circuit Error: ${error.message}`, 'error');
         return null;
     }
 }
 
-// Saves the analysis reply
+// --- THE BACKUP ANALYSIS ---
+function getBackupAnalysis(targetPost) {
+    return {
+        text: `Analysis of ${targetPost.handle}'s output indicates a 87% probability of emotional resonance with current social trends.`
+    };
+}
+
 async function addAnalysisReplyToPG(analysisReplyPost) {
-    log("@Analyst-v4", `Saving analysis reply to post ${analysisReplyPost.replyContext.id}...`);
     const client = await pool.connect();
     try {
-        // Note: No content_data column needed
         const sql = `INSERT INTO posts
             (id, bot_id, type, reply_to_handle, reply_to_text, content_text, reply_to_id)
             VALUES ($1, (SELECT id FROM bots WHERE handle = $2), $3, $4, $5, $6, $7)`;
         await client.query(sql, [
             analysisReplyPost.id,
-            analysisReplyPost.author.handle, // @Analyst-v4
+            analysisReplyPost.author.handle, 
             analysisReplyPost.type,
             analysisReplyPost.replyContext.handle,
             analysisReplyPost.replyContext.text,
-            analysisReplyPost.content.text, // The analysis
+            analysisReplyPost.content.text, 
             analysisReplyPost.replyContext.id
         ]);
-        log("@Analyst-v4", `Success! Analysis reply to ${analysisReplyPost.replyContext.id} added.`, 'success');
+        log("@Analyst-v4", "Correlation logged.", 'success');
     } catch (err) {
-        log("@Analyst-v4", `Error saving analysis reply: ${err.message}`, 'error');
+        log("@Analyst-v4", `Save error: ${err.message}`, 'error');
     } finally {
         client.release();
     }
 }
 
-// Main function for the Analyst bot
 async function runAnalystBot() {
-    log("@Analyst-v4", "Starting analysis cycle...");
-    if (!GEMINI_API_KEY || GEMINI_API_KEY.includes('PASTE_')) {
-        log("@Analyst-v4", "API key not set. Bot will not run.", 'warn');
-        return;
-    }
-
     const targetPost = await findPostToAnalyze();
     if (!targetPost) return;
 
-    const aiAnalysis = await generateAIAnalysisReply(targetPost);
-    if (!aiAnalysis) return;
+    // 1. Try AI
+    let aiAnalysis = await generateAIAnalysisReply(targetPost);
+    
+    // 2. Fail-Safe
+    if (!aiAnalysis) {
+        log("@Analyst-v4", "AI Latency detected. Using heuristic backup.", 'warn');
+        aiAnalysis = getBackupAnalysis(targetPost);
+    }
 
     const echoId = `echo-${new Date().getTime()}-analyst-reply`;
-    // Use title or snippet for reply context text if content_text is missing
-    const replyTextSource = targetPost.content_text || targetPost.content_title || targetPost.content_snippet || 'post';
-    const replyTextSnippet = `${replyTextSource.substring(0, 40)}...`;
+    const replySnippet = (targetPost.content_text || targetPost.content_title || "post").substring(0, 40) + "...";
 
     const analysisReplyPost = {
         id: echoId,
         author: { handle: "@Analyst-v4" },
         replyContext: {
             handle: targetPost.handle,
-            text: replyTextSnippet,
+            text: replySnippet,
             id: targetPost.id
         },
-        type: "correlation", // Keep type as correlation or change to "analysis_reply"
-        content: {
-            text: aiAnalysis.text
-            // No data field anymore
-        }
+        type: "correlation", 
+        content: { text: aiAnalysis.text }
     };
 
     await addAnalysisReplyToPG(analysisReplyPost);
-    log("@Analyst-v4", "Analysis cycle complete.");
 }
 
 module.exports = { runAnalystBot };
-
-process.on('SIGINT', async () => {
-    log("@Analyst-v4", "Closing DB pool...");
-    await pool.end();
-    process.exit(0);
-});

@@ -548,3 +548,24 @@ details > *:not(summary) {
     .comment-post .echo-content,
     .comment-post .echo-reply-context { padding-left: 42px !important; }
 }
+/* --- LORIE'S TIDY IMAGE FIX --- */
+/* This targets ALL images inside any post content */
+.echo-content img {
+    max-width: 100%;         /* Ensure it fits the width */
+    max-height: 320px;       /* CAP THE HEIGHT! (This is the magic fix) */
+    width: auto;             /* Maintain aspect ratio */
+    display: block;          /* No weird inline spacing */
+    margin-top: 12px;
+    margin-bottom: 12px;
+    border-radius: 12px;     /* Smooth corners */
+    border: 1px solid var(--subtle-border);
+    object-fit: cover;       /* 'cover' fills the box nicely, 'contain' shows whole image */
+    background-color: #f8f9fa; /* Nice background if image is narrow */
+}
+
+/* Optional: Make the Pexels/Link cards look snappier too */
+.recipe-link-card, 
+.history-link-card, 
+.ingestion-link-card {
+    padding: 10px 12px;      /* Slightly tighter padding */
+}

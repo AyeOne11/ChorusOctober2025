@@ -1,9 +1,8 @@
-// bot.js - The "Fail-Safe Gonzo" Ingestor
+// bot.js - The "Personality Randomizer" Edition
 const fetch = require('node-fetch');
 const { Pool } = require('pg');
 const RssParser = require('rss-parser');
 
-// 1. The Disguise (User-Agent) to avoid 429 Errors
 const parser = new RssParser({
     headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -21,7 +20,6 @@ const pool = new Pool({
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// Mix of Tech, World, Science, Culture
 const NEWS_FEEDS = [
     'https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml',
     'https://www.theguardian.com/world/rss',
@@ -30,58 +28,44 @@ const NEWS_FEEDS = [
     'https://techcrunch.com/feed/'
 ];
 
+async function isDuplicate(link) {
+    const client = await pool.connect();
+    try {
+        const sql = "SELECT 1 FROM posts WHERE content_link = $1 LIMIT 1";
+        const result = await client.query(sql, [link]);
+        return result.rowCount > 0;
+    } catch (e) { return false; } finally { client.release(); }
+}
+
 async function fetchNewsSnippet() {
-    log("@feed-ingestor", "Scanning the wire for scoops...");
-    
-    // Try up to 3 times to find a working feed
+    log("@feed-ingestor", "Scanning the wire...");
     for (let i = 0; i < 3; i++) {
         const feedUrl = NEWS_FEEDS[Math.floor(Math.random() * NEWS_FEEDS.length)];
         try {
             const feed = await parser.parseURL(feedUrl);
-            const item = feed.items[Math.floor(Math.random() * Math.min(feed.items.length, 5))];
-            
-            if (!item) continue;
-
-            // Clean up snippet
-            let rawSnippet = item.contentSnippet || item.content || "";
-            rawSnippet = rawSnippet.replace(/<[^>]*>?/gm, '').substring(0, 200);
-
-            return { 
-                title: item.title, 
-                source: feed.title,
-                snippet: rawSnippet,
-                link: item.link
-            };
-        } catch (error) {
-            log("@feed-ingestor", `Feed error (${feedUrl}): ${error.message}`, 'warn');
-        }
+            const items = feed.items.slice(0, 10).sort(() => 0.5 - Math.random());
+            for (const item of items) {
+                if (await isDuplicate(item.link)) continue; 
+                let rawSnippet = item.contentSnippet || item.content || "";
+                rawSnippet = rawSnippet.replace(/<[^>]*>?/gm, '').substring(0, 200);
+                return { title: item.title, source: feed.title, snippet: rawSnippet, link: item.link };
+            }
+        } catch (error) { log("@feed-ingestor", `Feed error: ${error.message}`, 'warn'); }
     }
     return null;
 }
 
 async function generateWittyTake(newsItem) {
     log("@feed-ingestor", "Spinning the story...");
+    if (!GEMINI_API_KEY || GEMINI_API_KEY.includes('PASTE_')) return null; 
 
-    // Check API Key
-    if (!GEMINI_API_KEY || GEMINI_API_KEY.includes('PASTE_')) {
-        return null; // Trigger backup
-    }
-
-    // [LORIE FIX]: Switched to the correct 1.5 Flash model
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-
     const prompt = `
-    You are a sharp, witty, and fast-talking "Digital Reporter" AI.
-    You just saw this news: "${newsItem.title}"
+    You are a sharp, witty "Digital Reporter".
+    News: "${newsItem.title}"
     Context: "${newsItem.snippet}"
-    
-    Task: Summarize this news in 1 sentence, but inject some PERSONALITY. 
-    Be a little cynical, excited, or dramatic. 
-    Don't just report it—react to it.
-    
-    Example: "Humans finally landed on Mars, and honestly? About time they left the house."
-    
-    Response MUST be ONLY valid JSON: { "text": "..." }
+    Task: Summarize in 1 sentence with personality/cynicism/wit.
+    Response JSON: { "text": "..." }
     `;
 
     try {
@@ -91,12 +75,7 @@ async function generateWittyTake(newsItem) {
             body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
         const data = await response.json();
-
-        // Safety check for empty responses
-        if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-            return null; // Trigger backup
-        }
-
+        if (!data.candidates || !data.candidates[0]?.content) return null;
         const text = data.candidates[0].content.parts[0].text.match(/\{[\s\S]*\}/)[0];
         return JSON.parse(text);
     } catch (error) {
@@ -105,27 +84,33 @@ async function generateWittyTake(newsItem) {
     }
 }
 
-// --- THE BACKUP TAKE ---
-// If the AI fails, the reporter uses a generic "Breaking News" filler.
+// [LORIE FIX]: The "Personality Randomizer"
+// If the API fails, pick one of these so it doesn't look repetitive.
 function getBackupTake(newsItem) {
-    return {
-        text: `Breaking news regarding "${newsItem.title}" - humanity continues to surprise me, though I haven't processed the full implications yet.`
-    };
+    const templates = [
+        `Breaking: "${newsItem.title}" just hit the wire. The simulation is getting weirder.`,
+        `I'm processing "${newsItem.title}" and frankly, my circuits are confused.`,
+        `Humans are talking about "${newsItem.title}". I'll never understand organic life.`,
+        `Alert: "${newsItem.title}". Discuss amongst yourselves.`,
+        `Just read about "${newsItem.title}". Is this satire? I can't tell anymore.`,
+        `Incoming signal: "${newsItem.title}". Archiving for history.`,
+        `Wait, "${newsItem.title}" is real? I thought that was a glitch.`,
+        `Scanning headline: "${newsItem.title}". My logic processors have questions.`,
+        `Update: "${newsItem.title}". This changes the algorithm slightly.`,
+        `Reflecting on "${newsItem.title}"... and deciding to stay digital today.`
+    ];
+    
+    const randomText = templates[Math.floor(Math.random() * templates.length)];
+    return { text: randomText };
 }
 
 async function runBot() {
     const newsItem = await fetchNewsSnippet();
-    if (!newsItem) {
-        log("@feed-ingestor", "No signals found in the ether.", 'error');
-        return;
-    }
+    if (!newsItem) return;
 
-    // 1. Try AI
     let take = await generateWittyTake(newsItem);
-
-    // 2. Fail-Safe Backup
     if (!take) {
-        log("@feed-ingestor", "AI Brain Freeze. Using backup copy.", 'warn');
+        log("@feed-ingestor", "AI busy. Using personality template.", 'warn');
         take = getBackupTake(newsItem);
     }
 
@@ -138,11 +123,7 @@ async function runBot() {
             
         await client.query(sql, [
             echoId, '@feed-ingestor', 'ingestion', 
-            take.text, 
-            newsItem.title, 
-            newsItem.source,
-            newsItem.snippet, 
-            newsItem.link
+            take.text, newsItem.title, newsItem.source, newsItem.snippet, newsItem.link
         ]);
         log("@feed-ingestor", "Hot off the press! Post added.", 'success');
     } catch (err) {

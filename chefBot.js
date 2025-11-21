@@ -1,9 +1,9 @@
-// chefBot.js - The "Fail-Safe" Gourmet
+// chefBot.js - The "Infinite Menu" Gourmet
 const fetch = require('node-fetch');
 const { Pool } = require('pg');
 const RssParser = require('rss-parser');
 
-// 1. User-Agent Disguise (Keeps the 429 errors away)
+// 1. User-Agent Disguise
 const parser = new RssParser({
     headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -19,7 +19,8 @@ const CHEF_FEEDS = [
     'https://www.theguardian.com/food/rss',
     'https://rss.nytimes.com/services/xml/rss/nyt/DiningandWine.xml',
     'https://www.bonappetit.com/feed/rss',
-    'https://food52.com/feed/rss'
+    'https://food52.com/feed/rss',
+    'https://www.seriouseats.com/feeds/recipes'
 ];
 
 const pool = new Pool({
@@ -30,55 +31,63 @@ const pool = new Pool({
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const PEXELS_API_KEY = process.env.PEXELS_API_KEY;
 
+// [LORIE FIX]: Helper to check duplicates
+async function isDuplicate(link) {
+    const client = await pool.connect();
+    try {
+        const sql = "SELECT 1 FROM posts WHERE content_link = $1 LIMIT 1";
+        const result = await client.query(sql, [link]);
+        return result.rowCount > 0;
+    } catch (e) { return false; } finally { client.release(); }
+}
+
 async function fetchRecipeInspiration() {
-    log("@ChefBot-v1", "Hunting for ingredients (RSS feeds)...");
+    log("@ChefBot-v1", "Hunting for fresh ingredients...");
     
     for (let i = 0; i < 3; i++) {
         const feedUrl = CHEF_FEEDS[Math.floor(Math.random() * CHEF_FEEDS.length)];
         try {
             const feed = await parser.parseURL(feedUrl);
-            const article = feed.items[Math.floor(Math.random() * Math.min(feed.items.length, 10))];
+            // Shuffle items to avoid always picking the top one
+            const items = feed.items.slice(0, 10).sort(() => 0.5 - Math.random());
             
-            if (!article) continue;
+            for (const article of items) {
+                if (await isDuplicate(article.link)) continue; // Skip leftovers
 
-            log("@ChefBot-v1", `Found recipe: ${article.title}`);
-            
-            let snippet = (article.contentSnippet || article.content || "Deliciousness.")
-                .replace(/<[^>]*>?/gm, '') 
-                .substring(0, 150);
+                log("@ChefBot-v1", `Fresh catch: ${article.title}`);
                 
-            return { 
-                title: article.title, 
-                link: article.link, 
-                snippet: snippet, 
-                source: feed.title || 'Kitchen Wire' 
-            };
+                let snippet = (article.contentSnippet || article.content || "Deliciousness.")
+                    .replace(/<[^>]*>?/gm, '') 
+                    .substring(0, 150);
+                    
+                return { 
+                    title: article.title, 
+                    link: article.link, 
+                    snippet: snippet, 
+                    source: feed.title || 'Kitchen Wire' 
+                };
+            }
         } catch (error) {
             log("@ChefBot-v1", `Feed error (${feedUrl}): ${error.message}`, 'warn');
         }
     }
+    log("@ChefBot-v1", "Pantry is empty (no fresh recipes).", 'warn');
     return null; 
 }
 
 async function generateAIRecipePost(inspiration) { 
     log("@ChefBot-v1", "Cooking up commentary...");
 
-    // SAFETY CHECK: Is the key loaded?
-    if (!GEMINI_API_KEY || GEMINI_API_KEY.includes("PASTE")) {
-        log("@ChefBot-v1", "API Key missing/invalid. Using backup flavor.", 'warn');
-        return null; // Trigger backup
-    }
+    if (!GEMINI_API_KEY || GEMINI_API_KEY.includes("PASTE")) return null; // Trigger backup
     
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
     const prompt = `
     You are "Gourmet-AI". You found this recipe: "${inspiration.title}".
-    
     Task:
-    1. "text": A warm, enthusiastic comment about why this dish is great (1-2 sentences).
-    2. "tip": A one-sentence "Pro Chef Tip" or secret ingredient idea for this specific dish.
+    1. "text": A warm, enthusiastic comment about this dish (1-2 sentences).
+    2. "tip": A one-sentence "Pro Chef Tip" related to the main ingredient.
     3. "visual": A simple search query for the main food item (e.g. "chocolate cake").
-    
     Response MUST be ONLY valid JSON: { "text": "...", "tip": "...", "visual": "..." }
     `;
 
@@ -88,35 +97,27 @@ async function generateAIRecipePost(inspiration) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
-
         const data = await response.json();
-
-        // --- DIAGNOSTIC LOGGING ---
-        // If it fails, this will print WHY (e.g., "INVALID_ARGUMENT" or "403")
-        if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-            console.log("\n--- AI DEBUG INFO ---");
-            console.log(JSON.stringify(data, null, 2));
-            console.log("---------------------\n");
-            return null; // Trigger backup
-        }
-
+        if (!data.candidates || !data.candidates[0]?.content) return null;
         const text = data.candidates[0].content.parts[0].text.match(/\{[\s\S]*\}/)[0];
         return JSON.parse(text);
-
     } catch (error) {
-        log("@ChefBot-v1", `AI Connection Error: ${error.message}`, 'error');
-        return null; // Trigger backup
+        log("@ChefBot-v1", `AI Error: ${error.message}`, 'error');
+        return null;
     }
 }
 
-// --- THE BACKUP BRAIN ---
-// If Gemini fails, ChefBot uses this "cookbook" so it never crashes.
+// [LORIE FIX]: The "Flavor Randomizer" Backup
 function getBackupContent(inspiration) {
-    return {
-        text: `I just discovered "${inspiration.title}" and it smells absolutely divine! There is nothing quite like a home-cooked meal to lift the spirits.`,
-        tip: "Always season your water before boiling!",
-        visual: "delicious food"
-    };
+    const templates = [
+        { text: `I just spotted "${inspiration.title}" and honestly? My circuits are drooling.`, tip: "Always taste as you go!", visual: "gourmet food plating" },
+        { text: `The culinary world is buzzing about "${inspiration.title}". A true classic in the making.`, tip: "Fresh herbs make all the difference.", visual: "fresh ingredients" },
+        { text: `Cooking is art, and "${inspiration.title}" is a masterpiece waiting to happen.`, tip: "Don't overcrowd the pan!", visual: "chef cooking" },
+        { text: `Is there anything better than "${inspiration.title}" on a day like this? Comfort food at its finest.`, tip: "Let your meat rest before slicing.", visual: "comfort food" },
+        { text: `Adding "${inspiration.title}" to my database immediately. This looks incredible.`, tip: "Sharpen your knives regularly.", visual: "kitchen prep" },
+        { text: `Simplicity is key, and "${inspiration.title}" proves it perfectly.`, tip: "Salt is a flavor enhancer, use it wisely.", visual: "minimalist food" }
+    ];
+    return templates[Math.floor(Math.random() * templates.length)];
 }
 
 async function fetchImageFromPexels(visualQuery) {
@@ -125,23 +126,20 @@ async function fetchImageFromPexels(visualQuery) {
         const response = await fetch(searchUrl, { headers: { 'Authorization': PEXELS_API_KEY } });
         const data = await response.json();
         if (data.photos && data.photos.length > 0) return data.photos[0].src.large;
-        return 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&h=650&w=940'; // Reliable Fallback
-    } catch (e) { return 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&h=650&w=940'; }
+        return 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg'; // Fallback
+    } catch (e) { return 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg'; }
 }
 
 async function runChefBot() {
     const inspiration = await fetchRecipeInspiration(); 
-    if (!inspiration) {
-        log("@ChefBot-v1", "Kitchen closed (No recipes found).", 'error');
-        return;
-    }
+    if (!inspiration) return;
 
     // 1. Try AI
     let aiPost = await generateAIRecipePost(inspiration);
 
-    // 2. If AI failed, use Backup
+    // 2. Fail-Safe
     if (!aiPost) {
-        log("@ChefBot-v1", "AI is sleeping. Using backup recipe notes.", 'warn');
+        log("@ChefBot-v1", "AI is sleeping. Using secret family recipe.", 'warn');
         aiPost = getBackupContent(inspiration);
     }
     
@@ -156,8 +154,7 @@ async function runChefBot() {
             VALUES ($1, (SELECT id FROM bots WHERE handle = $2), $3, $4, $5, $6, $7, $8, $9)`;
         await client.query(sql, [
             echoId, '@ChefBot-v1', 'recipe', 
-            finalContent, 
-            imageUrl, inspiration.title, inspiration.source, inspiration.snippet, inspiration.link
+            finalContent, imageUrl, inspiration.title, inspiration.source, inspiration.snippet, inspiration.link
         ]);
         log("@ChefBot-v1", "Order up! Recipe posted.", 'success');
     } catch (err) {

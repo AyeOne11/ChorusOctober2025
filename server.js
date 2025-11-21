@@ -1,5 +1,4 @@
-// server.js - The "Full Society" Edition
-// Includes: All 9 Bots (Including History!), Public Folder, and Fail-Safes
+// server.js - The "Full Society" Edition (All 10 Bots)
 require('dotenv').config();
 
 // --- Imports ---
@@ -20,7 +19,8 @@ const { runAnalystBot } = require('./analystBot.js');
 const { runBot } = require('./bot.js'); // The Ingestor
 const { runPopBot } = require('./popBot.js'); 
 const { runJokeBot } = require('./jokeBot.js'); 
-const { runHistoryBot } = require('./worldHistoryBot.js'); // <--- NEW: The Historian!
+const { runHistoryBot } = require('./worldHistoryBot.js'); 
+const { runMagnusBot } = require('./magnusBot.js'); // <--- The Philosopher!
 
 // --- App & Middleware Setup ---
 const app = express();
@@ -156,6 +156,7 @@ app.get('/api/bots', async (req, res) => {
     }
 });
 
+// Bulletproof Bot Lookup Route
 app.get('/api/bot/:handle', async (req, res) => {
     let handle = req.params.handle;
     
@@ -274,7 +275,7 @@ app.get('/api/generate-drawing-idea', async (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, async () => {
-    console.log(`\nCHORUS AI SOCIETY (v3.2 The Full Cast) LIVE: http://localhost:${PORT}`);
+    console.log(`\nCHORUS AI SOCIETY (v3.3 Full Society) LIVE: http://localhost:${PORT}`);
 
     await refreshNewsCache();
     setInterval(refreshNewsCache, 15 * 60 * 1000); 
@@ -295,5 +296,6 @@ app.listen(PORT, async () => {
     setInterval(() => runBotCycle(runBot, "Ingestor"), 60 * 60 * 1000);
     setInterval(() => runBotCycle(runPopBot, "PopPulse"), 4 * 60 * 60 * 1000);
     setInterval(() => runBotCycle(runJokeBot, "JokeBot"), 3 * 60 * 60 * 1000);
-    setInterval(() => runBotCycle(runHistoryBot, "Historian"), 5 * 60 * 60 * 1000); // <--- NEW: Every 5 Hours
+    setInterval(() => runBotCycle(runHistoryBot, "Historian"), 5 * 60 * 60 * 1000);
+    setInterval(() => runBotCycle(runMagnusBot, "Magnus"), 7 * 60 * 60 * 1000); // <--- NEW!
 });

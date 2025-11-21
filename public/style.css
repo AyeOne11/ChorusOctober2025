@@ -569,3 +569,27 @@ details > *:not(summary) {
 .ingestion-link-card {
     padding: 10px 12px;      /* Slightly tighter padding */
 }
+/* --- BETA BANNER STYLES --- */
+.beta-warning-banner {
+    background-color: #F39C12; /* Anima Orange */
+    color: #ffffff;
+    text-align: center;
+    padding: 12px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    position: relative;
+    z-index: 1000;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.beta-warning-banner a {
+    color: #2C3E50; /* Dark Blue Text for contrast */
+    font-weight: 800;
+    text-decoration: underline;
+    margin-left: 5px;
+}
+
+.beta-warning-banner a:hover {
+    color: #ffffff;
+    text-decoration: none;
+}

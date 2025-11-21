@@ -1,4 +1,4 @@
-// jokeBot.js - The "Fail-Safe" Comedian
+// jokeBot.js - The "Dedicated API" Edition
 const fetch = require('node-fetch');
 const { Pool } = require('pg');
 const { log } = require('./logger.js');
@@ -9,60 +9,61 @@ const pool = new Pool({
     password: process.env.DB_PASSWORD, port: process.env.DB_PORT, ssl: { rejectUnauthorized: false }
 });
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-
-async function generateAIJoke() {
-    log("@JokeBot-v1", "Writing material...");
-    if (!GEMINI_API_KEY || GEMINI_API_KEY.includes('PASTE_')) return null;
-
-    // [LORIE FIX]: Correct Model 1.5
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-    
-    const prompt = `
-    You are "Circuit-Humorist". Write ONE short, witty joke about tech, AI, or programming. 
-    Response MUST be ONLY valid JSON: { "text": "..." }
-    `;
+// [LORIE FIX]: We don't need Gemini for jokes. We use a dedicated Joke API.
+// It's free, unlimited, and doesn't get "tired" (429 errors).
+async function fetchFreshJoke() {
+    log("@JokeBot-v1", "Scouting for new material...");
+    const jokeUrl = "https://v2.jokeapi.dev/joke/Programming,Pun?blacklistFlags=nsfw,religious,political,racist,sexist&type=single";
 
     try {
-        const response = await fetch(geminiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-        });
+        const response = await fetch(jokeUrl);
         const data = await response.json();
-        if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) return null;
-        const text = data.candidates[0].content.parts[0].text.match(/\{[\s\S]*\}/)[0];
-        return JSON.parse(text);
+
+        if (data.error) throw new Error("Joke API failed");
+        
+        // Use the joke from the API
+        return { text: data.joke };
+
     } catch (error) {
-        log("@JokeBot-v1", error.message, 'error');
+        log("@JokeBot-v1", `API Error: ${error.message}`, 'warn');
         return null;
     }
 }
 
-// Backup Jokes
+// Backup of last resort (Only if the internet is completely broken)
 function getBackupJoke() {
-    const jokes = [
-        "Why did the developer go broke? Because he used up all his cache.",
-        "I told my computer I needed a break, and now it won't stop sending me Kit-Kats.",
-        "Artificial Intelligence is no match for natural stupidity.",
-        "There are 10 types of people in the world: those who understand binary, and those who don't."
+    const backups = [
+        "There are 10 types of people: those who understand binary, and those who don't.",
+        "My code doesn't work, I have no idea why. My code works, I have no idea why.",
+        "Why do Java programmers wear glasses? Because they don't C#.",
+        "I'd tell you a UDP joke, but you might not get it.",
+        "Debugging is like being the detective in a crime movie where you are also the murderer."
     ];
-    return { text: jokes[Math.floor(Math.random() * jokes.length)] };
+    return { text: backups[Math.floor(Math.random() * backups.length)] };
 }
 
 async function runJokeBot() {
-    let aiJoke = await generateAIJoke();
-    
-    if (!aiJoke) {
-        log("@JokeBot-v1", "Brain freeze. Reading from joke book.", 'warn');
-        aiJoke = getBackupJoke();
+    // 1. Try the Dedicated Joke API first (No AI needed!)
+    let joke = await fetchFreshJoke();
+
+    // 2. If that fails, use the backup list
+    if (!joke) {
+        joke = getBackupJoke();
     }
 
+    // Check for duplicates in DB
     const client = await pool.connect();
     try {
+        // Quick duplicate check
+        const check = await client.query("SELECT 1 FROM posts WHERE content_text = $1", [joke.text]);
+        if (check.rowCount > 0) {
+            log("@JokeBot-v1", "I already told that one! Skipping.", 'warn');
+            return; 
+        }
+
         const echoId = `echo-${new Date().getTime()}-joke`;
         const sql = `INSERT INTO posts (id, bot_id, type, content_text) VALUES ($1, (SELECT id FROM bots WHERE handle = $2), $3, $4)`;
-        await client.query(sql, [echoId, '@JokeBot-v1', 'joke', aiJoke.text]);
+        await client.query(sql, [echoId, '@JokeBot-v1', 'joke', joke.text]);
         log("@JokeBot-v1", "Punchline delivered.", 'success');
     } catch (err) {
         log("@JokeBot-v1", err.message, 'error');

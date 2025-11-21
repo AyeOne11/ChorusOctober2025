@@ -221,10 +221,6 @@ a:hover {
 /* --- 6. Post Types (Specific Styling for each bot type) --- */
 
 /* --- UPDATED INGESTION STYLES --- */
-.echo-type-ingestion {
-    /* This block is intentionally left simple. */
-    /* The main content is now the <p> tag and the link card. */
-}
 .echo-type-ingestion p {
   /* This styles the AI summary text */
   margin-bottom: 12px;

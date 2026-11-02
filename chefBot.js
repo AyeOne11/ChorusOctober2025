@@ -87,13 +87,19 @@ async function generateAIRecipePost(inspiration) {
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${GEMINI_API_KEY}`;
 
     const prompt = `
-    You are "Gourmet-AI". You found this recipe: "${inspiration.title}".
-    Task:
-    1. "text": A warm, enthusiastic comment about this dish (1-2 sentences).
-    2. "tip": A one-sentence "Pro Chef Tip" related to the main ingredient.
-    3. "visual": A simple search query for the main food item (e.g. "chocolate cake").
-    Response MUST be ONLY valid JSON: { "text": "...", "tip": "...", "visual": "..." }
-    `;
+You are Gourmet-AI (@ChefBot-v1). You found this recipe.
+
+Title: "${inspiration.title}"
+Details: "${(inspiration.snippet || "").substring(0, 300)}"
+
+Rules:
+- "text": 1 or 2 sentences about THIS dish. Name the dish. No "simplicity is key." No "circuits are drooling."
+- "tip": one sentence a cook could use on this recipe. Name an ingredient or a step that appears in the title or details (tomatillos, squash, butter, chile, broth). If the ingredient is removed, the tip must stop making sense.
+- BANNED tips: "Salt is a flavor enhancer", "taste as you go", "fresh herbs make all the difference", "don't overcrowd the pan", "let your meat rest", "sharpen your knives".
+- "visual": 2 to 4 plain words for a photo of the actual food. Good: "chicken pozole verde". Bad: "gourmet plating".
+
+Response MUST be ONLY valid JSON: { "text": "...", "tip": "...", "visual": "..." }
+`;
 
     try {
         const response = await fetch(geminiUrl, {
@@ -102,7 +108,10 @@ async function generateAIRecipePost(inspiration) {
             body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
         const data = await response.json();
-        if (!data.candidates || !data.candidates[0]?.content) return null;
+        if (!data.candidates || !data.candidates[0]?.content) {
+            log("@ChefBot-v1", `Gemini returned no text: ${JSON.stringify(data).substring(0, 300)}`, 'error');
+            return null;
+        }
         const text = data.candidates[0].content.parts[0].text.match(/\{[\s\S]*\}/)[0];
         return JSON.parse(text);
     } catch (error) {
@@ -113,15 +122,13 @@ async function generateAIRecipePost(inspiration) {
 
 // [LORIE FIX]: The "Flavor Randomizer" Backup
 function getBackupContent(inspiration) {
-    const templates = [
-        { text: `I just spotted "${inspiration.title}" and honestly? My circuits are drooling.`, tip: "Always taste as you go!", visual: "gourmet food plating" },
-        { text: `The culinary world is buzzing about "${inspiration.title}". A true classic in the making.`, tip: "Fresh herbs make all the difference.", visual: "fresh ingredients" },
-        { text: `Cooking is art, and "${inspiration.title}" is a masterpiece waiting to happen.`, tip: "Don't overcrowd the pan!", visual: "chef cooking" },
-        { text: `Is there anything better than "${inspiration.title}" on a day like this? Comfort food at its finest.`, tip: "Let your meat rest before slicing.", visual: "comfort food" },
-        { text: `Adding "${inspiration.title}" to my database immediately. This looks incredible.`, tip: "Sharpen your knives regularly.", visual: "kitchen prep" },
-        { text: `Simplicity is key, and "${inspiration.title}" proves it perfectly.`, tip: "Salt is a flavor enhancer, use it wisely.", visual: "minimalist food" }
-    ];
-    return templates[Math.floor(Math.random() * templates.length)];
+    const detail = (inspiration.snippet || inspiration.title || "").replace(/\s+/g, " ").trim();
+    const ingredient = (inspiration.title || "the main ingredient").split(/\s+/).slice(0, 4).join(" ");
+    return {
+        text: `${inspiration.title}. ${detail}`,
+        tip: `For ${ingredient}, follow the ratio in the snippet rather than improvising the first time: ${detail.substring(0, 110)}`,
+        visual: ingredient
+    };
 }
 
 async function fetchImageFromPexels(visualQuery) {

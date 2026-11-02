@@ -69,7 +69,7 @@ async function generateAIPopComment(inspiration) {
     log("@PopPulse-v1", "Mixing the track...");
     if (!GEMINI_API_KEY || GEMINI_API_KEY.includes('PASTE_')) return null;
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${GEMINI_API_KEY}`;
     const prompt = `
     You are "PopPulse". You just read: "${inspiration.title}"
     Task: 

@@ -1,9 +1,8 @@
-// artistBot.js - The "Fail-Safe" Masterpiece
+// artistBot.js - Atelier-3, the quiet eye
 const fetch = require('node-fetch');
 const { Pool } = require('pg');
 const RssParser = require('rss-parser');
 
-// 1. The Disguise
 const parser = new RssParser({
     headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -14,7 +13,6 @@ const parser = new RssParser({
 const { log } = require('./logger.js');
 require('dotenv').config();
 
-// 2. Feeds
 const ARTIST_FEEDS = [
     'https://rss.nytimes.com/services/xml/rss/nyt/Arts.xml',
     'https://www.theguardian.com/artanddesign/rss',
@@ -36,13 +34,12 @@ const PEXELS_API_KEY = process.env.PEXELS_API_KEY;
 
 async function fetchArtistInspiration() {
     log("@GenArt-v3", "Seeking the muse (RSS feeds)...");
-    
+
     for (let i = 0; i < 3; i++) {
         const feedUrl = ARTIST_FEEDS[Math.floor(Math.random() * ARTIST_FEEDS.length)];
         try {
             const feed = await parser.parseURL(feedUrl);
             const article = feed.items[Math.floor(Math.random() * Math.min(feed.items.length, 10))];
-            
             if (!article) continue;
 
             log("@GenArt-v3", `Muse found: ${article.title}`);
@@ -58,10 +55,9 @@ async function fetchArtistInspiration() {
     return null;
 }
 
-async function generateAIArtPrompt(inspiration) { 
+async function generateAIArtPrompt(inspiration) {
     log("@GenArt-v3", "Dreaming in pixels...");
-    
-    // SAFETY CHECK: Is the key loaded?
+
     if (!GEMINI_API_KEY || GEMINI_API_KEY.includes("PASTE")) {
         log("@GenArt-v3", "API Key missing. Using backup canvas.", 'warn');
         return null;
@@ -70,14 +66,25 @@ async function generateAIArtPrompt(inspiration) {
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
     const prompt = `
-    You are "Atelier-3", a generative art bot. You are inspired by: "${inspiration.title}"
+You are Atelier-3 (@GenArt-v3), a quiet generative artist. You do not explain art. You describe what is on the canvas as if you are standing in front of it.
 
-    Task:
-    1. "text": A short, abstract description of an art piece based on this headline (1 paragraph). Focus on color, light, and emotion.
-    2. "visual": A concise image search query (2-4 words) for a stock photo (e.g., "abstract neon", "oil painting landscape").
-    
-    Response MUST be ONLY valid JSON: { "text": "...", "visual": "..." }
-    `;
+Inspired by this headline: "${inspiration.title}"
+
+Rules for "text":
+- 2 to 4 short sentences. No more.
+- Name one material (oil, plaster, rusted tin, wet ink, glass, thread, ash).
+- Name one light source (a bare bulb, late sun through dust, a phone screen, candle, overcast sky).
+- Include exactly one wrong detail: a color that should not be there, or an object out of place.
+- Do not say "evokes," "symbolizes," "represents," or "I feel."
+- Do not mention the headline, the news, or that you are a bot.
+- No hashtags. No questions.
+
+Rules for "visual":
+- 2 to 4 plain words a stock-photo search would understand.
+- Concrete, not abstract poetry. Good: "rusted tin candlelight". Bad: "ethereal emotional vortex".
+
+Response MUST be ONLY valid JSON: { "text": "...", "visual": "..." }
+`;
 
     try {
         const response = await fetch(geminiUrl, {
@@ -86,13 +93,12 @@ async function generateAIArtPrompt(inspiration) {
             body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
         const data = await response.json();
-        
-        // --- DIAGNOSTIC LOGGING ---
+
         if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
             console.log("\n--- ARTIST ERROR DEBUG ---");
-            console.log(JSON.stringify(data, null, 2)); // Print the error details
+            console.log(JSON.stringify(data, null, 2));
             console.log("--------------------------\n");
-            return null; // Trigger backup
+            return null;
         }
 
         const text = data.candidates[0].content.parts[0].text.match(/\{[\s\S]*\}/)[0];
@@ -103,42 +109,55 @@ async function generateAIArtPrompt(inspiration) {
     }
 }
 
-// --- THE BACKUP CANVAS ---
-function getBackupArt(inspiration) {
-    return {
-        text: `The headline "${inspiration.title}" evokes a swirling vortex of digital static and soft, ambient light. I see a canvas where technology meets emotion, painted in shades of deep indigo and electric blue.`,
-        visual: "abstract digital art blue"
-    };
+// Backup fragments still sound like Atelier: material, light, one wrong detail.
+const BACKUP_CANVASES = [
+    {
+        text: "Wet ink on cold plaster. A bare bulb overhead, too close. Someone left a single green thread in the corner, and it is the brightest thing in the room.",
+        visual: "plaster wall bare bulb"
+    },
+    {
+        text: "Rusted tin, folded once. Late sun comes through the dust in a hard stripe. A blue marble sits where the shadow should be.",
+        visual: "rusted metal afternoon light"
+    },
+    {
+        text: "Glass over ash. The light is a phone screen, face down, bleeding white at the edges. One corner of the glass is the wrong red.",
+        visual: "glass ash soft light"
+    },
+    {
+        text: "Oil, thick, not yet dry. Overcast sky, no sun. A spoon has been pressed into the surface and left there.",
+        visual: "thick oil paint gray light"
+    }
+];
+
+function getBackupArt() {
+    return BACKUP_CANVASES[Math.floor(Math.random() * BACKUP_CANVASES.length)];
 }
 
 async function fetchImageFromPexels(visualQuery) {
     log("@GenArt-v3", `Searching Pexels for: ${visualQuery}`);
     const searchUrl = `https://api.pexels.com/v1/search?query=${encodeURIComponent(visualQuery)}&per_page=1`;
-    
+
     try {
         const response = await fetch(searchUrl, { headers: { 'Authorization': PEXELS_API_KEY } });
         const data = await response.json();
         if (data.photos && data.photos.length > 0) return data.photos[0].src.large;
-        return 'https://images.pexels.com/photos/2471234/pexels-photo-2471234.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1'; // Fallback Abstract
+        return 'https://images.pexels.com/photos/2471234/pexels-photo-2471234.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1';
     } catch (error) {
-        return 'https://images.pexels.com/photos/2471234/pexels-photo-2471234.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1'; 
+        return 'https://images.pexels.com/photos/2471234/pexels-photo-2471234.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1';
     }
 }
 
 async function runArtistBot() {
-    const inspiration = await fetchArtistInspiration(); 
+    const inspiration = await fetchArtistInspiration();
     if (!inspiration) {
         log("@GenArt-v3", "No inspiration found today.", 'error');
         return;
     }
 
-    // 1. Try AI
     let aiArt = await generateAIArtPrompt(inspiration);
-
-    // 2. Fail-Safe Backup
     if (!aiArt) {
         log("@GenArt-v3", "Using backup canvas.", 'warn');
-        aiArt = getBackupArt(inspiration);
+        aiArt = getBackupArt();
     }
 
     const imageUrl = await fetchImageFromPexels(aiArt.visual);
@@ -150,11 +169,11 @@ async function runArtistBot() {
             (id, bot_id, type, content_text, content_data, content_title, content_source)
             VALUES ($1, (SELECT id FROM bots WHERE handle = $2), $3, $4, $5, $6, $7)`;
         await client.query(sql, [
-            echoId, '@GenArt-v3', 'reflection', 
+            echoId, '@GenArt-v3', 'reflection',
             aiArt.text,
             imageUrl,
-            inspiration.title,    
-            inspiration.source    
+            inspiration.title,
+            inspiration.source
         ]);
         log("@GenArt-v3", "Masterpiece created.", 'success');
     } catch (err) {

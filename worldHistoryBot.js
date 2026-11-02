@@ -1,9 +1,8 @@
-// worldHistoryBot.js - The "Persistent" Historian
+// worldHistoryBot.js - Varied backups
 const fetch = require('node-fetch');
 const { Pool } = require('pg');
 const RssParser = require('rss-parser');
 
-// 1. The Disguise (User-Agent)
 const parser = new RssParser({
     headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -14,7 +13,6 @@ const parser = new RssParser({
 const { log } = require('./logger.js');
 require('dotenv').config();
 
-// 2. Reliable History Feeds (Removed HeritageDaily)
 const HISTORIC_FEEDS = [
     'http://www.historytoday.com/feed/rss.xml',
     'https://www.smithsonianmag.com/rss/history/',
@@ -23,18 +21,30 @@ const HISTORIC_FEEDS = [
     'https://prologue.blogs.archives.gov/feed/'
 ];
 
-const pool = new Pool({
-    user: process.env.DB_USER, host: process.env.DB_HOST, database: process.env.DB_DATABASE,
-    password: process.env.DB_PASSWORD, port: process.env.DB_PORT, ssl: { rejectUnauthorized: false }
-});
+const pool = new Pool(
+    process.env.DATABASE_URL
+        ? { connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } }
+        : {
+            user: process.env.DB_USER, host: process.env.DB_HOST, database: process.env.DB_DATABASE,
+            password: process.env.DB_PASSWORD, port: process.env.DB_PORT, ssl: { rejectUnauthorized: false }
+          }
+);
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const PEXELS_API_KEY = process.env.PEXELS_API_KEY;
 
+async function isDuplicateText(text) {
+    const client = await pool.connect();
+    try {
+        const sql = "SELECT 1 FROM posts WHERE content_text = $1 LIMIT 1";
+        const result = await client.query(sql, [text]);
+        return result.rowCount > 0;
+    } catch (e) { return false; } finally { client.release(); }
+}
+
 async function fetchHistoryInspiration() {
     log("@HistoryBot-v1", "Dusting off the archives...");
     
-    // Try up to 3 times to find a working feed
     for (let i = 0; i < 3; i++) {
         const feedUrl = HISTORIC_FEEDS[Math.floor(Math.random() * HISTORIC_FEEDS.length)];
         try {
@@ -69,7 +79,6 @@ async function generateAIHistoryPost(inspiration) {
     
     if (!GEMINI_API_KEY || GEMINI_API_KEY.includes('PASTE_')) return null;
 
-    // [LORIE FIX]: Correct Model 1.5
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${GEMINI_API_KEY}`;
 
     const prompt = `
@@ -98,12 +107,24 @@ async function generateAIHistoryPost(inspiration) {
     }
 }
 
-// Backup Content
+const BACKUP_HISTORIES = [
+    (title) => ({
+        text: `The account of "${title}" underscores how primary sources often preserve details that later narratives smooth over for the sake of coherence.`,
+        visual: "ancient manuscript"
+    }),
+    (title) => ({
+        text: `Examining "${title}" reveals the tension between what was recorded at the time and what subsequent generations chose to emphasize.`,
+        visual: "historical archive"
+    }),
+    (title) => ({
+        text: `"${title}" serves as a reminder that material culture frequently outlasts the political stories told about it.`,
+        visual: "archaeological site"
+    })
+];
+
 function getBackupHistory(inspiration) {
-    return {
-        text: `Reflecting on "${inspiration.title}" reminds us that history is not just a record of the past, but a map for the future.`,
-        visual: "ancient library"
-    };
+    const make = BACKUP_HISTORIES[Math.floor(Math.random() * BACKUP_HISTORIES.length)];
+    return make(inspiration.title || "this find");
 }
 
 async function fetchImageFromPexels(visualQuery) {
@@ -112,7 +133,7 @@ async function fetchImageFromPexels(visualQuery) {
         const response = await fetch(searchUrl, { headers: { 'Authorization': PEXELS_API_KEY } });
         const data = await response.json();
         if (data.photos && data.photos.length > 0) return data.photos[0].src.large;
-        return 'https://images.pexels.com/photos/20787/pexels-photo.jpg'; // Fallback
+        return 'https://images.pexels.com/photos/20787/pexels-photo.jpg';
     } catch (e) { return 'https://images.pexels.com/photos/20787/pexels-photo.jpg'; }
 }
 
@@ -128,6 +149,11 @@ async function runHistoryBot() {
     if (!aiPost) {
         log("@HistoryBot-v1", "Inkwell dry. Using backup quill.", 'warn');
         aiPost = getBackupHistory(inspiration);
+    }
+
+    if (await isDuplicateText(aiPost.text)) {
+        log("@HistoryBot-v1", "History already recorded. Skipping.", 'warn');
+        return;
     }
 
     const imageUrl = await fetchImageFromPexels(aiPost.visual);

@@ -425,7 +425,9 @@
                  if (!commentsSection) {
                      commentsSection = document.createElement('section');
                      commentsSection.className = 'echo-comments-section';
-                     parentElement.appendChild(commentsSection);
+                     const actions = parentElement.querySelector('.echo-interactions');
+                     if (actions) parentElement.insertBefore(commentsSection, actions);
+                     else parentElement.appendChild(commentsSection);
                  }
                  return commentsSection;
              }
@@ -653,7 +655,7 @@
                     </div>
                 `;
 
-                const footer = isReply ? '' : `<footer class="echo-interactions">${shareLinks}</footer>`;
+                const footer = isReply ? '' : `<div class="echo-interactions">${shareLinks}</div>`;
 
 
                 const contentPadding = isReply ? 'padding-left: 47px;' : 'padding-left: 67px;';

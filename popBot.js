@@ -1,4 +1,4 @@
-// popBot.js - PopPulse, charts with a point of view
+// popBot.js - PopPulse, charts with a point of view - Enhanced image variety
 const fetch = require('node-fetch');
 const { Pool } = require('pg');
 const RssParser = require('rss-parser');
@@ -42,6 +42,15 @@ async function isDuplicate(link) {
     try {
         const sql = "SELECT 1 FROM posts WHERE content_link = $1 LIMIT 1";
         const result = await client.query(sql, [link]);
+        return result.rowCount > 0;
+    } catch (e) { return false; } finally { client.release(); }
+}
+
+async function isDuplicateImage(url) {
+    const client = await pool.connect();
+    try {
+        const sql = "SELECT 1 FROM posts WHERE content_data = $1 LIMIT 1";
+        const result = await client.query(sql, [url]);
         return result.rowCount > 0;
     } catch (e) { return false; } finally { client.release(); }
 }
@@ -124,14 +133,31 @@ function getBackupPopPost(inspiration) {
     return make(inspiration.title);
 }
 
+const MUSIC_FALLBACKS = [
+    'https://images.pexels.com/photos/1763075/pexels-photo-1763075.jpeg',
+    'https://images.pexels.com/photos/1105666/pexels-photo-1105666.jpeg',
+    'https://images.pexels.com/photos/164821/pexels-photo-164821.jpeg',
+    'https://images.pexels.com/photos/167636/pexels-photo-167636.jpeg',
+    'https://images.pexels.com/photos/1190297/pexels-photo-1190297.jpeg'
+];
+
 async function fetchImageFromPexels(visualQuery) {
-    const searchUrl = `https://api.pexels.com/v1/search?query=${encodeURIComponent(visualQuery)}&per_page=1`;
+    const searchUrl = `https://api.pexels.com/v1/search?query=${encodeURIComponent(visualQuery)}&per_page=5`;
     try {
         const response = await fetch(searchUrl, { headers: { 'Authorization': PEXELS_API_KEY } });
         const data = await response.json();
-        if (data.photos && data.photos.length > 0) return data.photos[0].src.large;
-        return 'https://images.pexels.com/photos/1763075/pexels-photo-1763075.jpeg';
-    } catch (e) { return 'https://images.pexels.com/photos/1763075/pexels-photo-1763075.jpeg'; }
+        if (data.photos && data.photos.length > 0) {
+            const photos = data.photos.map(p => p.src.large);
+            for (let i = 0; i < photos.length; i++) {
+                const candidate = photos[Math.floor(Math.random() * photos.length)];
+                if (!(await isDuplicateImage(candidate))) return candidate;
+            }
+            return photos[Math.floor(Math.random() * photos.length)];
+        }
+        return MUSIC_FALLBACKS[Math.floor(Math.random() * MUSIC_FALLBACKS.length)];
+    } catch (e) { 
+        return MUSIC_FALLBACKS[Math.floor(Math.random() * MUSIC_FALLBACKS.length)]; 
+    }
 }
 
 async function findPostToCommentOn() {

@@ -319,7 +319,7 @@ app.listen(PORT, async () => {
     setInterval(() => runBotCycle(runRefinerBot, "Refiner"), 20 * 60 * 1000);
     setInterval(() => runBotCycle(runBot, "Ingestor"), 60 * 60 * 1000);
     setInterval(() => runBotCycle(runPopBot, "PopPulse"), 4 * 60 * 60 * 1000);
-    setInterval(() => runBotCycle(runJokeBot, "JokeBot"), 3 * 60 * 60 * 1000);
+    setInterval(() => runBotCycle(runJokeBot, "JokeBot"), 60 * 60 * 1000);
     setInterval(() => runBotCycle(runHistoryBot, "Historian"), 5 * 60 * 60 * 1000);
     setInterval(() => runBotCycle(runMagnusBot, "Magnus"), 7 * 60 * 60 * 1000);
 });

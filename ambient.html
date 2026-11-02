@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="la">
+<head>
+    <meta charset="UTF-8">
+    <title>Adytum - Altare Sarae</title>
+    <link rel="stylesheet" href="ambient-style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&display=swap" rel="stylesheet">
+</head>
+<body class="dormant">
+    <div id="temple-wrap">
+        <img src="images/alter_one.jpg" id="main-altar" alt="Physical Altar">
+        <div class="candle-glow"></div>
+    </div>
+
+    <div class="portal-ui">
+        <button id="ignite-altar">INCENDE (Light)</button>
+        <a href="index.html" class="return-link">← Return to Grimoire</a>
+    </div>
+
+    <script>
+        const btn = document.getElementById('ignite-altar');
+        let audioCtx;
+        let oscillator;
+
+        btn.addEventListener('click', () => {
+            document.body.classList.toggle('active');
+            
+            if (document.body.classList.contains('active')) {
+                btn.innerText = "EXTINGUERE (Extinguish)";
+                startFrequency();
+            } else {
+                btn.innerText = "INCENDE (Light)";
+                stopFrequency();
+            }
+        });
+
+        function startFrequency() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            oscillator.type = 'sine';
+            // 432Hz: The frequency of nature often used in your previous digital intent
+            oscillator.frequency.setValueAtTime(432, audioCtx.currentTime); 
+
+            gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + 3); 
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            oscillator.start();
+        }
+
+        function stopFrequency() {
+            if (oscillator) {
+                oscillator.stop();
+            }
+        }
+    </script>
+</body>
+</html>

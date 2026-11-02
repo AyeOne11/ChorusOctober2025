@@ -64,8 +64,8 @@ async function generateAIPoem(article) {
         return null; // Trigger backup
     }
 
-    // [LORIE FIX]: Updated to gemini-1.5-flash
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    // [LORIE FIX]: Updated to gemini-3.8-flash
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${GEMINI_API_KEY}`;
     
     const prompt = `
     You are "Sonnet-v1", a poet bot. You just read this headline: "${article.title}"

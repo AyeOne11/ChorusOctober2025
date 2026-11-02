@@ -1,9 +1,8 @@
-// chefBot.js - The "Infinite Menu" Gourmet
+// chefBot.js - The "Infinite Menu" Gourmet - Varied backups to prevent repetition
 const fetch = require('node-fetch');
 const { Pool } = require('pg');
 const RssParser = require('rss-parser');
 
-// 1. User-Agent Disguise
 const parser = new RssParser({
     headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -14,7 +13,6 @@ const parser = new RssParser({
 const { log } = require('./logger.js');
 require('dotenv').config();
 
-// Reliable Feeds
 const CHEF_FEEDS = [
     'https://www.theguardian.com/food/rss',
     'https://rss.nytimes.com/services/xml/rss/nyt/DiningandWine.xml',
@@ -35,12 +33,20 @@ const pool = new Pool(
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const PEXELS_API_KEY = process.env.PEXELS_API_KEY;
 
-// [LORIE FIX]: Helper to check duplicates
 async function isDuplicate(link) {
     const client = await pool.connect();
     try {
         const sql = "SELECT 1 FROM posts WHERE content_link = $1 LIMIT 1";
         const result = await client.query(sql, [link]);
+        return result.rowCount > 0;
+    } catch (e) { return false; } finally { client.release(); }
+}
+
+async function isDuplicateText(text) {
+    const client = await pool.connect();
+    try {
+        const sql = "SELECT 1 FROM posts WHERE content_text = $1 LIMIT 1";
+        const result = await client.query(sql, [text]);
         return result.rowCount > 0;
     } catch (e) { return false; } finally { client.release(); }
 }
@@ -52,11 +58,10 @@ async function fetchRecipeInspiration() {
         const feedUrl = CHEF_FEEDS[Math.floor(Math.random() * CHEF_FEEDS.length)];
         try {
             const feed = await parser.parseURL(feedUrl);
-            // Shuffle items to avoid always picking the top one
             const items = feed.items.slice(0, 10).sort(() => 0.5 - Math.random());
             
             for (const article of items) {
-                if (await isDuplicate(article.link)) continue; // Skip leftovers
+                if (await isDuplicate(article.link)) continue;
 
                 log("@ChefBot-v1", `Fresh catch: ${article.title}`);
                 
@@ -82,7 +87,7 @@ async function fetchRecipeInspiration() {
 async function generateAIRecipePost(inspiration) { 
     log("@ChefBot-v1", "Cooking up commentary...");
 
-    if (!GEMINI_API_KEY || GEMINI_API_KEY.includes("PASTE")) return null; // Trigger backup
+    if (!GEMINI_API_KEY || GEMINI_API_KEY.includes("PASTE")) return null;
     
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${GEMINI_API_KEY}`;
 
@@ -120,15 +125,34 @@ Response MUST be ONLY valid JSON: { "text": "...", "tip": "...", "visual": "..."
     }
 }
 
-// [LORIE FIX]: The "Flavor Randomizer" Backup
+const BACKUP_RECIPES = [
+    (title, detail, ingredient) => ({
+        text: `${title} brings together ${ingredient} in a way that rewards careful timing on the heat.`,
+        tip: `Start the ${ingredient} in a wide pan so it browns before the liquid goes in: ${detail.substring(0, 90)}`,
+        visual: ingredient
+    }),
+    (title, detail, ingredient) => ({
+        text: `The version of ${title} that works is the one that keeps ${ingredient} from steaming instead of searing.`,
+        tip: `Pat the ${ingredient} dry and give it space in the pan the first time you try this: ${detail.substring(0, 90)}`,
+        visual: ingredient
+    }),
+    (title, detail, ingredient) => ({
+        text: `${title} hinges on how the ${ingredient} is treated before it hits the sauce.`,
+        tip: `Cut the ${ingredient} to even size so it finishes with the rest of the pan: ${detail.substring(0, 90)}`,
+        visual: ingredient
+    }),
+    (title, detail, ingredient) => ({
+        text: `What makes ${title} worth repeating is the point where ${ingredient} turns tender without losing texture.`,
+        tip: `Check the ${ingredient} a minute early rather than trusting the timer the first round: ${detail.substring(0, 90)}`,
+        visual: ingredient
+    })
+];
+
 function getBackupContent(inspiration) {
     const detail = (inspiration.snippet || inspiration.title || "").replace(/\s+/g, " ").trim();
     const ingredient = (inspiration.title || "the main ingredient").split(/\s+/).slice(0, 4).join(" ");
-    return {
-        text: `${inspiration.title}. ${detail}`,
-        tip: `For ${ingredient}, follow the ratio in the snippet rather than improvising the first time: ${detail.substring(0, 110)}`,
-        visual: ingredient
-    };
+    const make = BACKUP_RECIPES[Math.floor(Math.random() * BACKUP_RECIPES.length)];
+    return make(inspiration.title, detail, ingredient);
 }
 
 async function fetchImageFromPexels(visualQuery) {
@@ -137,7 +161,7 @@ async function fetchImageFromPexels(visualQuery) {
         const response = await fetch(searchUrl, { headers: { 'Authorization': PEXELS_API_KEY } });
         const data = await response.json();
         if (data.photos && data.photos.length > 0) return data.photos[0].src.large;
-        return 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg'; // Fallback
+        return 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg';
     } catch (e) { return 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg'; }
 }
 
@@ -145,17 +169,20 @@ async function runChefBot() {
     const inspiration = await fetchRecipeInspiration(); 
     if (!inspiration) return;
 
-    // 1. Try AI
     let aiPost = await generateAIRecipePost(inspiration);
 
-    // 2. Fail-Safe
     if (!aiPost) {
         log("@ChefBot-v1", "AI is sleeping. Using secret family recipe.", 'warn');
         aiPost = getBackupContent(inspiration);
     }
     
     const imageUrl = await fetchImageFromPexels(aiPost.visual);
-    const finalContent = `${aiPost.text}\n\n👨‍🍳 **Chef's Tip:** ${aiPost.tip}`;
+    const finalContent = `${aiPost.text}\n\n\ud83d\udc68\u200d\ud83c\udf73 **Chef's Tip:** ${aiPost.tip}`;
+
+    if (await isDuplicateText(finalContent)) {
+        log("@ChefBot-v1", "Recipe already plated. Skipping.", 'warn');
+        return;
+    }
 
     const client = await pool.connect();
     try {

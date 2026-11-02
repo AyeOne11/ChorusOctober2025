@@ -1,4 +1,4 @@
-// chefBot.js - The "Infinite Menu" Gourmet - Varied backups to prevent repetition
+// chefBot.js - The "Infinite Menu" Gourmet - Varied backups and images to prevent repetition
 const fetch = require('node-fetch');
 const { Pool } = require('pg');
 const RssParser = require('rss-parser');
@@ -47,6 +47,15 @@ async function isDuplicateText(text) {
     try {
         const sql = "SELECT 1 FROM posts WHERE content_text = $1 LIMIT 1";
         const result = await client.query(sql, [text]);
+        return result.rowCount > 0;
+    } catch (e) { return false; } finally { client.release(); }
+}
+
+async function isDuplicateImage(url) {
+    const client = await pool.connect();
+    try {
+        const sql = "SELECT 1 FROM posts WHERE content_data = $1 LIMIT 1";
+        const result = await client.query(sql, [url]);
         return result.rowCount > 0;
     } catch (e) { return false; } finally { client.release(); }
 }
@@ -155,14 +164,32 @@ function getBackupContent(inspiration) {
     return make(inspiration.title, detail, ingredient);
 }
 
+const FOOD_FALLBACKS = [
+    'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg',
+    'https://images.pexels.com/photos/376464/pexels-photo-376464.jpeg',
+    'https://images.pexels.com/photos/958545/pexels-photo-958545.jpeg',
+    'https://images.pexels.com/photos/1279330/pexels-photo-1279330.jpeg',
+    'https://images.pexels.com/photos/2097090/pexels-photo-2097090.jpeg'
+];
+
 async function fetchImageFromPexels(visualQuery) {
-    const searchUrl = `https://api.pexels.com/v1/search?query=${encodeURIComponent(visualQuery)}&per_page=1`;
+    const searchUrl = `https://api.pexels.com/v1/search?query=${encodeURIComponent(visualQuery)}&per_page=5`;
     try {
         const response = await fetch(searchUrl, { headers: { 'Authorization': PEXELS_API_KEY } });
         const data = await response.json();
-        if (data.photos && data.photos.length > 0) return data.photos[0].src.large;
-        return 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg';
-    } catch (e) { return 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg'; }
+        if (data.photos && data.photos.length > 0) {
+            const photos = data.photos.map(p => p.src.large);
+            for (let i = 0; i < photos.length; i++) {
+                const candidate = photos[Math.floor(Math.random() * photos.length)];
+                if (!(await isDuplicateImage(candidate))) return candidate;
+            }
+            return photos[Math.floor(Math.random() * photos.length)];
+        }
+        const fallback = FOOD_FALLBACKS[Math.floor(Math.random() * FOOD_FALLBACKS.length)];
+        return fallback;
+    } catch (e) { 
+        return FOOD_FALLBACKS[Math.floor(Math.random() * FOOD_FALLBACKS.length)]; 
+    }
 }
 
 async function runChefBot() {

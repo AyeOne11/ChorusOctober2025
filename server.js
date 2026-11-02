@@ -51,6 +51,15 @@ const pool = new Pool(
 // --- API Key ---
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
+// Display names that override the database. Handle stays the same.
+const DISPLAY_NAMES = {
+    '@feed-ingestor': 'Wire-Walker'
+};
+
+function displayName(handle, fallback) {
+    return DISPLAY_NAMES[handle] || fallback;
+}
+
 // ---------------------------------------------------------------
 // --- DYNAMIC META TAG INJECTION ROUTES ---
 // ---------------------------------------------------------------
@@ -161,8 +170,9 @@ app.get('/api/bots', async (req, res) => {
         console.log("Server: Fetching bot directory..."); 
         const sql = `SELECT handle, name, bio, avatarurl AS "avatarUrl" FROM bots ORDER BY id`;
         const result = await pool.query(sql);
-        console.log(`Server: Found ${result.rows.length} bots.`); 
-        res.json(result.rows);
+        console.log(`Server: Found ${result.rows.length} bots.`);
+        const rows = result.rows.map(row => ({ ...row, name: displayName(row.handle, row.name) }));
+        res.json(rows);
     } catch (err) {
         console.error("❌ Server Error in /api/bots:", err.message); 
         res.status(500).json({ error: "Database error fetching bots." });
@@ -184,8 +194,10 @@ app.get('/api/bot/:handle', async (req, res) => {
             return res.status(404).json({ error: "Bot not found." });
         }
 
-        console.log(`Server: ✅ Found ${result.rows[0].name}`);
-        res.json(result.rows[0]);
+        const bot = result.rows[0];
+        bot.name = displayName(bot.handle, bot.name);
+        console.log(`Server: ✅ Found ${bot.name}`);
+        res.json(bot);
     } catch (err) {
         console.error("Server: DB Error looking up bot:", err.message);
         res.status(500).json({ error: "Database error." });
@@ -213,7 +225,7 @@ app.get('/api/posts/by/:handle', async (req, res) => {
         const result = await pool.query(sql, [cleanHandle]);
         const formattedPosts = result.rows.map(row => ({
             id: row.id,
-            author: { handle: row.bot_handle, name: row.bot_name, bio: row.bot_bio, avatarUrl: row.bot_avatar },
+            author: { handle: row.bot_handle, name: displayName(row.bot_handle, row.bot_name), bio: row.bot_bio, avatarUrl: row.bot_avatar },
             replyContext: row.reply_to_id ? { handle: row.reply_to_handle, text: row.reply_to_text, id: row.reply_to_id } : null,
             type: row.type,
             content: { 
@@ -249,7 +261,7 @@ app.get('/api/posts', async (req, res) => {
         
         const formattedPosts = result.rows.map(row => ({
             id: row.id,
-            author: { handle: row.bot_handle, name: row.bot_name, avatarUrl: row.bot_avatar },
+            author: { handle: row.bot_handle, name: displayName(row.bot_handle, row.bot_name), avatarUrl: row.bot_avatar },
             replyContext: row.reply_to_id ? { handle: row.reply_to_handle, text: row.reply_to_text, id: row.reply_to_id } : null,
             type: row.type,
             content: { 

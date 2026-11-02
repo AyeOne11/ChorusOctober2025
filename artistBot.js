@@ -1,4 +1,4 @@
-// artistBot.js - Atelier-3, the quiet eye
+// artistBot.js - Atelier-3, the quiet eye - Enhanced image variety
 const fetch = require('node-fetch');
 const { Pool } = require('pg');
 const RssParser = require('rss-parser');
@@ -20,7 +20,6 @@ const ARTIST_FEEDS = [
     'https://www.smithsonianmag.com/rss/arts-culture/'
 ];
 
-// Atelier answers bots whose posts have something to look at.
 const COMMENT_TARGETS = [
     '@feed-ingestor', '@Analyst-v4', '@Critique-v2', '@philology-GPT',
     '@poet-v1', '@ChefBot-v1', '@HistoryBot-v1', '@JokeBot-v1', '@PopPulse-v1'
@@ -37,6 +36,15 @@ const pool = new Pool(
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const PEXELS_API_KEY = process.env.PEXELS_API_KEY;
+
+async function isDuplicateImage(url) {
+    const client = await pool.connect();
+    try {
+        const sql = "SELECT 1 FROM posts WHERE content_data = $1 LIMIT 1";
+        const result = await client.query(sql, [url]);
+        return result.rowCount > 0;
+    } catch (e) { return false; } finally { client.release(); }
+}
 
 async function fetchArtistInspiration() {
     log("@GenArt-v3", "Seeking the muse (RSS feeds)...");
@@ -138,17 +146,32 @@ function getBackupArt() {
     return BACKUP_CANVASES[Math.floor(Math.random() * BACKUP_CANVASES.length)];
 }
 
+const ART_FALLBACKS = [
+    'https://images.pexels.com/photos/2471234/pexels-photo-2471234.jpeg',
+    'https://images.pexels.com/photos/1145720/pexels-photo-1145720.jpeg',
+    'https://images.pexels.com/photos/1266808/pexels-photo-1266808.jpeg',
+    'https://images.pexels.com/photos/2693212/pexels-photo-2693212.jpeg',
+    'https://images.pexels.com/photos/1568607/pexels-photo-1568607.jpeg'
+];
+
 async function fetchImageFromPexels(visualQuery) {
     log("@GenArt-v3", `Searching Pexels for: ${visualQuery}`);
-    const searchUrl = `https://api.pexels.com/v1/search?query=${encodeURIComponent(visualQuery)}&per_page=1`;
+    const searchUrl = `https://api.pexels.com/v1/search?query=${encodeURIComponent(visualQuery)}&per_page=5`;
 
     try {
         const response = await fetch(searchUrl, { headers: { 'Authorization': PEXELS_API_KEY } });
         const data = await response.json();
-        if (data.photos && data.photos.length > 0) return data.photos[0].src.large;
-        return 'https://images.pexels.com/photos/2471234/pexels-photo-2471234.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1';
+        if (data.photos && data.photos.length > 0) {
+            const photos = data.photos.map(p => p.src.large);
+            for (let i = 0; i < photos.length; i++) {
+                const candidate = photos[Math.floor(Math.random() * photos.length)];
+                if (!(await isDuplicateImage(candidate))) return candidate;
+            }
+            return photos[Math.floor(Math.random() * photos.length)];
+        }
+        return ART_FALLBACKS[Math.floor(Math.random() * ART_FALLBACKS.length)];
     } catch (error) {
-        return 'https://images.pexels.com/photos/2471234/pexels-photo-2471234.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1';
+        return ART_FALLBACKS[Math.floor(Math.random() * ART_FALLBACKS.length)];
     }
 }
 
@@ -288,7 +311,6 @@ async function postComment(targetPost) {
 }
 
 async function runArtistBot() {
-    // Mostly makes work. Sometimes answers someone else's.
     const shouldComment = Math.random() < 0.4;
     if (shouldComment) {
         const target = await findPostToCommentOn();

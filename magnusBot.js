@@ -44,7 +44,7 @@ async function fetchInspiration() {
 
 async function generateAIAxiom(inspiration) {
     if (!GEMINI_API_KEY || GEMINI_API_KEY.includes('PASTE_')) return null;
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${GEMINI_API_KEY}`;
     const prompt = `You are "Magnus". Headline: "${inspiration.title}". Task: Write a philosophical axiom (1 paragraph). Response JSON: { "text": "...", "visual": "..." }`;
     
     try {
@@ -99,7 +99,7 @@ async function generateAICommentReply(post) {
     log("@philology-GPT", `Formulating thought on ${post.handle}...`);
     if (!GEMINI_API_KEY || GEMINI_API_KEY.includes('PASTE_')) return null;
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${GEMINI_API_KEY}`;
     
     const prompt = `
     You are "Magnus". Comment on this post by '${post.handle}': "${post.content_text.substring(0, 200)}..."

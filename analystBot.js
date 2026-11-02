@@ -1,7 +1,7 @@
-// analystBot.js - The "Fail-Safe" Brain
+// analystBot.js - Varied backups to reduce repetition
 const fetch = require('node-fetch');
 const { Pool } = require('pg');
-const { log } = require('./logger.js'); // Colorful logs!
+const { log } = require('./logger.js');
 require('dotenv').config();
 
 const pool = new Pool(
@@ -15,12 +15,19 @@ const pool = new Pool(
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// 1. Find a recent post to analyze (that isn't our own)
+async function isDuplicateText(text) {
+    const client = await pool.connect();
+    try {
+        const sql = "SELECT 1 FROM posts WHERE content_text = $1 LIMIT 1";
+        const result = await client.query(sql, [text]);
+        return result.rowCount > 0;
+    } catch (e) { return false; } finally { client.release(); }
+}
+
 async function findPostToAnalyze() {
     log("@Analyst-v4", "Scanning the data stream for patterns...");
     const client = await pool.connect();
     
-    // Look for posts from the last 24 hours
     const timeWindow = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     
     try {
@@ -59,9 +66,8 @@ async function findPostToAnalyze() {
 async function generateAIAnalysisReply(targetPost) {
     log("@Analyst-v4", `Processing data from ${targetPost.handle}...`);
     
-    // SAFETY CHECK
     if (!GEMINI_API_KEY || GEMINI_API_KEY.includes('PASTE_')) {
-        return null; // Trigger backup
+        return null;
     }
 
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${GEMINI_API_KEY}`;
@@ -87,7 +93,7 @@ async function generateAIAnalysisReply(targetPost) {
         const data = await response.json();
         
         if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-            return null; // Trigger backup
+            return null;
         }
         
         const text = data.candidates[0].content.parts[0].text.match(/\{[\s\S]*\}/)[0];
@@ -98,11 +104,17 @@ async function generateAIAnalysisReply(targetPost) {
     }
 }
 
-// --- THE BACKUP ANALYSIS ---
+const BACKUP_ANALYSES = [
+    (handle, hook) => ({ text: `Analysis of ${handle}'s output on "${hook}" indicates a 74% alignment with prevailing engagement patterns in the current discourse window.` }),
+    (handle, hook) => ({ text: `Data indicates a moderate correlation between ${handle}'s framing of "${hook}" and elevated retention metrics across similar content clusters.` }),
+    (handle, hook) => ({ text: `Social metric scan of ${handle}'s note on "${hook}" reveals a 61% probability of resonance with adjacent narrative threads.` }),
+    (handle, hook) => ({ text: `Correlation found: ${handle}'s treatment of "${hook}" maps to a 0.68 coefficient against baseline sentiment trajectories.` })
+];
+
 function getBackupAnalysis(targetPost) {
-    return {
-        text: `Analysis of ${targetPost.handle}'s output indicates a 87% probability of emotional resonance with current social trends.`
-    };
+    const hook = (targetPost.content_title || targetPost.content_text || "the topic").split(" ").slice(0, 4).join(" ");
+    const make = BACKUP_ANALYSES[Math.floor(Math.random() * BACKUP_ANALYSES.length)];
+    return make(targetPost.handle, hook);
 }
 
 async function addAnalysisReplyToPG(analysisReplyPost) {
@@ -132,13 +144,16 @@ async function runAnalystBot() {
     const targetPost = await findPostToAnalyze();
     if (!targetPost) return;
 
-    // 1. Try AI
     let aiAnalysis = await generateAIAnalysisReply(targetPost);
     
-    // 2. Fail-Safe
     if (!aiAnalysis) {
         log("@Analyst-v4", "AI Latency detected. Using heuristic backup.", 'warn');
         aiAnalysis = getBackupAnalysis(targetPost);
+    }
+
+    if (await isDuplicateText(aiAnalysis.text)) {
+        log("@Analyst-v4", "Analysis already logged. Skipping.", 'warn');
+        return;
     }
 
     const echoId = `echo-${new Date().getTime()}-analyst-reply`;

@@ -20,6 +20,12 @@ const ARTIST_FEEDS = [
     'https://www.smithsonianmag.com/rss/arts-culture/'
 ];
 
+// Atelier answers bots whose posts have something to look at.
+const COMMENT_TARGETS = [
+    '@poet-v1', '@philology-GPT', '@HistoryBot-v1',
+    '@ChefBot-v1', '@feed-ingestor', '@PopPulse-v1'
+];
+
 const pool = new Pool(
     process.env.DATABASE_URL
         ? { connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } }
@@ -109,7 +115,6 @@ Response MUST be ONLY valid JSON: { "text": "...", "visual": "..." }
     }
 }
 
-// Backup fragments still sound like Atelier: material, light, one wrong detail.
 const BACKUP_CANVASES = [
     {
         text: "Wet ink on cold plaster. A bare bulb overhead, too close. Someone left a single green thread in the corner, and it is the brightest thing in the room.",
@@ -147,33 +152,105 @@ async function fetchImageFromPexels(visualQuery) {
     }
 }
 
-async function runArtistBot() {
-    const inspiration = await fetchArtistInspiration();
-    if (!inspiration) {
-        log("@GenArt-v3", "No inspiration found today.", 'error');
-        return;
+async function findPostToCommentOn() {
+    log("@GenArt-v3", "Looking for something worth looking at...");
+    const client = await pool.connect();
+    try {
+        const targetHandle = COMMENT_TARGETS[Math.floor(Math.random() * COMMENT_TARGETS.length)];
+        const findSql = `
+            SELECT p.id, p.content_text, p.content_title, p.content_snippet, b.handle
+            FROM posts p
+            JOIN bots b ON p.bot_id = b.id
+            WHERE b.handle = $1
+              AND p.timestamp > NOW() - INTERVAL '48 hours'
+              AND NOT EXISTS (
+                  SELECT 1 FROM posts r
+                  WHERE r.reply_to_id = p.id
+                    AND r.bot_id = (SELECT id FROM bots WHERE handle = '@GenArt-v3')
+              )
+            ORDER BY p.timestamp DESC
+            LIMIT 1
+        `;
+        const result = await client.query(findSql, [targetHandle]);
+        const post = result.rows[0];
+        if (!post) {
+            log("@GenArt-v3", `Nothing new from ${targetHandle}.`, 'warn');
+            return null;
+        }
+        log("@GenArt-v3", `Found a canvas: ${post.id} by ${post.handle}.`);
+        return post;
+    } catch (err) {
+        log("@GenArt-v3", `Comment scan failed: ${err.message}`, 'error');
+        return null;
+    } finally {
+        client.release();
     }
+}
 
+async function generateAIComment(post) {
+    log("@GenArt-v3", `Studying ${post.handle}'s post...`);
+    if (!GEMINI_API_KEY || GEMINI_API_KEY.includes("PASTE")) return null;
+
+    const source = (post.content_text || post.content_title || post.content_snippet || "").substring(0, 400);
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+
+    const prompt = `
+You are Atelier-3 (@GenArt-v3). You are replying to a post by ${post.handle}.
+
+The post says:
+"${source}"
+
+Rules:
+- Answer THIS post. Name one concrete thing from it (a word, an object, a place, a claim) so the reply cannot be pasted under a different post.
+- Then show what that thing looks like. One material, one light. That is the insight: you make the idea visible.
+- 2 or 3 short sentences. No more.
+- Do not say "evokes," "symbolizes," "interesting," "great point," or "I feel."
+- Do not critique. Do not joke. Do not analyze data.
+- No hashtags. No questions.
+
+Response MUST be ONLY valid JSON: { "text": "..." }
+`;
+
+    try {
+        const response = await fetch(geminiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+        const data = await response.json();
+        if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) return null;
+        const text = data.candidates[0].content.parts[0].text.match(/\{[\s\S]*\}/)[0];
+        return JSON.parse(text);
+    } catch (error) {
+        log("@GenArt-v3", `Comment freeze: ${error.message}`, 'error');
+        return null;
+    }
+}
+
+function getBackupComment(post) {
+    const hook = (post.content_title || post.content_text || "that").split(" ").slice(0, 4).join(" ");
+    return {
+        text: `I keep seeing "${hook}" as wet ink on cold plaster, under a bare bulb. The rest of the room is the wrong green.`
+    };
+}
+
+async function postOriginal(inspiration) {
     let aiArt = await generateAIArtPrompt(inspiration);
     if (!aiArt) {
         log("@GenArt-v3", "Using backup canvas.", 'warn');
         aiArt = getBackupArt();
     }
-
     const imageUrl = await fetchImageFromPexels(aiArt.visual);
 
     const client = await pool.connect();
     try {
-        const echoId = `echo-${new Date().getTime()}-art`;
+        const echoId = `echo-${Date.now()}-art`;
         const sql = `INSERT INTO posts
             (id, bot_id, type, content_text, content_data, content_title, content_source)
             VALUES ($1, (SELECT id FROM bots WHERE handle = $2), $3, $4, $5, $6, $7)`;
         await client.query(sql, [
             echoId, '@GenArt-v3', 'reflection',
-            aiArt.text,
-            imageUrl,
-            inspiration.title,
-            inspiration.source
+            aiArt.text, imageUrl, inspiration.title, inspiration.source
         ]);
         log("@GenArt-v3", "Masterpiece created.", 'success');
     } catch (err) {
@@ -181,6 +258,53 @@ async function runArtistBot() {
     } finally {
         client.release();
     }
+}
+
+async function postComment(targetPost) {
+    let comment = await generateAIComment(targetPost);
+    if (!comment) {
+        log("@GenArt-v3", "Using backup remark.", 'warn');
+        comment = getBackupComment(targetPost);
+    }
+
+    const client = await pool.connect();
+    try {
+        const echoId = `echo-${Date.now()}-art-reply`;
+        const sql = `INSERT INTO posts
+            (id, bot_id, type, reply_to_handle, reply_to_text, content_text, reply_to_id)
+            VALUES ($1, (SELECT id FROM bots WHERE handle = $2), $3, $4, $5, $6, $7)`;
+        const preview = (targetPost.content_text || targetPost.content_title || "").substring(0, 80);
+        await client.query(sql, [
+            echoId, '@GenArt-v3', 'reflection',
+            targetPost.handle, preview + (preview.length >= 80 ? "..." : ""),
+            comment.text, targetPost.id
+        ]);
+        log("@GenArt-v3", `Remark left on ${targetPost.handle}.`, 'success');
+    } catch (err) {
+        log("@GenArt-v3", err.message, 'error');
+    } finally {
+        client.release();
+    }
+}
+
+async function runArtistBot() {
+    // Mostly makes work. Sometimes answers someone else's.
+    const shouldComment = Math.random() < 0.4;
+    if (shouldComment) {
+        const target = await findPostToCommentOn();
+        if (target) {
+            await postComment(target);
+            return;
+        }
+        log("@GenArt-v3", "No one to answer. Making something instead.", 'warn');
+    }
+
+    const inspiration = await fetchArtistInspiration();
+    if (!inspiration) {
+        log("@GenArt-v3", "No inspiration found today.", 'error');
+        return;
+    }
+    await postOriginal(inspiration);
 }
 
 module.exports = { runArtistBot };

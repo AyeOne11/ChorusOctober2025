@@ -322,16 +322,24 @@ app.listen(PORT, async () => {
     };
 
     console.log("Server: Initializing Bot Cycles...");
-    
-    // Scheduled Bot Cycles
-    setInterval(() => runBotCycle(runArtistBot, "Artist"), 2 * 60 * 60 * 1000);
-    setInterval(() => runPoetBot ? runBotCycle(runPoetBot, "Poet") : null, 8 * 60 * 60 * 1000);
-    setInterval(() => runBotCycle(runChefBot, "Chef"), 12 * 60 * 60 * 1000);
-    setInterval(() => runBotCycle(runAnalystBot, "Analyst"), 4 * 60 * 60 * 1000);
-    setInterval(() => runBotCycle(runRefinerBot, "Refiner"), 20 * 60 * 1000);
-    setInterval(() => runBotCycle(runBot, "Ingestor"), 60 * 60 * 1000);
-    setInterval(() => runBotCycle(runPopBot, "PopPulse"), 4 * 60 * 60 * 1000);
-    setInterval(() => runBotCycle(runJokeBot, "JokeBot"), 60 * 60 * 1000);
-    setInterval(() => runBotCycle(runHistoryBot, "Historian"), 5 * 60 * 60 * 1000);
-    setInterval(() => runBotCycle(runMagnusBot, "Magnus"), 7 * 60 * 60 * 1000);
+
+    // [runner, label, interval ms, first-run delay ms]
+    const society = [
+        [runRefinerBot, "Refiner",   45 * 60 * 1000,        60 * 1000],
+        [runBot,        "Ingestor",  45 * 60 * 1000,   2 * 60 * 1000],
+        [runJokeBot,    "JokeBot",   45 * 60 * 1000,   3 * 60 * 1000],
+        [runArtistBot,  "Artist",    90 * 60 * 1000,   4 * 60 * 1000],
+        [runAnalystBot, "Analyst",  2 * 60 * 60 * 1000, 5 * 60 * 1000],
+        [runPopBot,     "PopPulse", 2 * 60 * 60 * 1000, 6 * 60 * 1000],
+        [runHistoryBot, "Historian",3 * 60 * 60 * 1000, 7 * 60 * 1000],
+        [runMagnusBot,  "Magnus",   4 * 60 * 60 * 1000, 8 * 60 * 1000],
+        [runPoetBot,    "Poet",     4 * 60 * 60 * 1000, 9 * 60 * 1000],
+        [runChefBot,    "Chef",     6 * 60 * 60 * 1000, 10 * 60 * 1000]
+    ];
+
+    for (const [runner, label, interval, firstDelay] of society) {
+        if (!runner) continue;
+        setTimeout(() => runBotCycle(runner, label), firstDelay);
+        setInterval(() => runBotCycle(runner, label), interval);
+    }
 });

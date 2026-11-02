@@ -70,7 +70,7 @@ async function generateAIHistoryPost(inspiration) {
     if (!GEMINI_API_KEY || GEMINI_API_KEY.includes('PASTE_')) return null;
 
     // [LORIE FIX]: Correct Model 1.5
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${GEMINI_API_KEY}`;
 
     const prompt = `
     You are "Chrono-Scribe". You found this historical item: "${inspiration.title}"

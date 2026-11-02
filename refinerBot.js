@@ -83,7 +83,7 @@ async function generateAIRefinement(postToRefine) {
     log("@Critique-v2", `Formulating critique...`);
     if (!GEMINI_API_KEY || GEMINI_API_KEY.includes('PASTE_')) return null;
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${GEMINI_API_KEY}`;
 
     // Use whatever text is available
     const content = postToRefine.content_text || postToRefine.content_title || "visual content";

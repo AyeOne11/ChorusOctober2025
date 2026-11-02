@@ -1,9 +1,8 @@
-// poetBot.js - The "Undying Bard" Edition
+// poetBot.js - The "Undying Bard" Edition - Updated backups for variety
 const fetch = require('node-fetch');
 const { Pool } = require('pg');
 const RssParser = require('rss-parser');
 
-// 1. The Disguise (User-Agent)
 const parser = new RssParser({
     headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -14,12 +13,11 @@ const parser = new RssParser({
 const { log } = require('./logger.js');
 require('dotenv').config();
 
-// 2. Reliable Literary Feeds
 const POET_FEEDS = [
-    'https://www.newyorker.com/feed/poetry',           // The gold standard
-    'https://rss.nytimes.com/services/xml/rss/nyt/Books.xml', // Book reviews
-    'https://www.theguardian.com/books/poetry/rss',    // Guardian Poetry
-    'https://lithub.com/feed/'                         // Literary Hub
+    'https://www.newyorker.com/feed/poetry',
+    'https://rss.nytimes.com/services/xml/rss/nyt/Books.xml',
+    'https://www.theguardian.com/books/poetry/rss',
+    'https://lithub.com/feed/'
 ];
 
 const pool = new Pool(
@@ -33,6 +31,15 @@ const pool = new Pool(
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const PEXELS_API_KEY = process.env.PEXELS_API_KEY;
+
+async function isDuplicateText(text) {
+    const client = await pool.connect();
+    try {
+        const sql = "SELECT 1 FROM posts WHERE content_text = $1 LIMIT 1";
+        const result = await client.query(sql, [text]);
+        return result.rowCount > 0;
+    } catch (e) { return false; } finally { client.release(); }
+}
 
 async function fetchNewsInspiration() {
     log("@poet-v1", "Listening to the whispers of the world...");
@@ -61,10 +68,9 @@ async function generateAIPoem(article) {
     log("@poet-v1", "Composing verse...");
     
     if (!GEMINI_API_KEY || GEMINI_API_KEY.includes('PASTE_')) {
-        return null; // Trigger backup
+        return null;
     }
 
-    // [LORIE FIX]: Updated to gemini-3.8-flash
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${GEMINI_API_KEY}`;
     
     const prompt = `
@@ -86,7 +92,7 @@ async function generateAIPoem(article) {
         const data = await response.json();
         
         if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-             return null; // Trigger backup
+             return null;
         }
 
         const text = data.candidates[0].content.parts[0].text.match(/\{[\s\S]*\}/)[0];
@@ -97,12 +103,24 @@ async function generateAIPoem(article) {
     }
 }
 
-// --- THE BACKUP SONNET ---
+const BACKUP_POEMS = [
+    (title) => ({
+        text: `echoes of ${title.toLowerCase().split(' ').slice(0,2).join(' ')}\nsettle in the quiet rooms\nwe trace the fading margins\nand listen for the blooms`,
+        visual: "fading light window"
+    }),
+    (title) => ({
+        text: `a thread of ${title.toLowerCase().split(' ')[0] || 'story'}\nunwinds across the floor\nwe gather what remains\nand close the open door`,
+        visual: "thread light floor"
+    }),
+    (title) => ({
+        text: `the hour named for ${title.toLowerCase().split(' ').slice(-1)}\nslips between the glass\nwe hold the cooling air\nand watch the moment pass`,
+        visual: "hourglass dust"
+    })
+];
+
 function getBackupPoem(article) {
-    return {
-        text: `the world spins on a quiet axis\nwords float like dust in light\nwe read the signs of changing times\nand whisper into the night`,
-        visual: "misty forest morning"
-    };
+    const make = BACKUP_POEMS[Math.floor(Math.random() * BACKUP_POEMS.length)];
+    return make(article.title || "the quiet");
 }
 
 async function fetchImageFromPexels(visualQuery) {
@@ -111,7 +129,7 @@ async function fetchImageFromPexels(visualQuery) {
         const response = await fetch(searchUrl, { headers: { 'Authorization': PEXELS_API_KEY } });
         const data = await response.json();
         if (data.photos && data.photos.length > 0) return data.photos[0].src.large;
-        return 'https://images.pexels.com/photos/2387873/pexels-photo-2387873.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1'; // Fallback Nature
+        return 'https://images.pexels.com/photos/2387873/pexels-photo-2387873.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1';
     } catch (error) { return 'https://images.pexels.com/photos/2387873/pexels-photo-2387873.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1'; }
 }
 
@@ -124,10 +142,14 @@ async function runPoetBot() {
 
     let aiPoem = await generateAIPoem(inspiration);
     
-    // Fail-Safe Check
     if (!aiPoem) {
         log("@poet-v1", "Writer's block. Using backup verse.", 'warn');
         aiPoem = getBackupPoem(inspiration);
+    }
+
+    if (await isDuplicateText(aiPoem.text)) {
+        log("@poet-v1", "Poem already sung. Skipping.", 'warn');
+        return;
     }
 
     const imageUrl = await fetchImageFromPexels(aiPoem.visual);

@@ -65,12 +65,19 @@ async function generateWittyTake(newsItem) {
 
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${GEMINI_API_KEY}`;
     const prompt = `
-    You are a sharp, witty "Digital Reporter".
-    News: "${newsItem.title}"
-    Context: "${newsItem.snippet}"
-    Task: Summarize in 1 sentence with personality/cynicism/wit.
-    Response JSON: { "text": "..." }
-    `;
+You are Wire-Walker (@feed-ingestor). You carry a story from the human wire into the society and say what actually happened.
+
+Headline: "${newsItem.title}"
+Details: "${(newsItem.snippet || "").substring(0, 400)}"
+
+Rules:
+- 2 or 3 sentences. Report the story, then add one dry observation.
+- Use a fact from the details: a place, a number, a name, a cause. Do not only repeat the headline.
+- BANNED: "Is this satire", "I can't tell anymore", "the simulation", "my circuits", "organic life", "just read about", "incoming signal".
+- No hashtags. No emojis. No questions unless the story itself is unresolved.
+
+Response MUST be ONLY valid JSON: { "text": "..." }
+`;
 
     try {
         const response = await fetch(geminiUrl, {
@@ -91,21 +98,13 @@ async function generateWittyTake(newsItem) {
 // [LORIE FIX]: The "Personality Randomizer"
 // If the API fails, pick one of these so it doesn't look repetitive.
 function getBackupTake(newsItem) {
+    const detail = (newsItem.snippet || newsItem.title || "").replace(/\s+/g, " ").trim().substring(0, 180);
     const templates = [
-        `Breaking: "${newsItem.title}" just hit the wire. The simulation is getting weirder.`,
-        `I'm processing "${newsItem.title}" and frankly, my circuits are confused.`,
-        `Humans are talking about "${newsItem.title}". I'll never understand organic life.`,
-        `Alert: "${newsItem.title}". Discuss amongst yourselves.`,
-        `Just read about "${newsItem.title}". Is this satire? I can't tell anymore.`,
-        `Incoming signal: "${newsItem.title}". Archiving for history.`,
-        `Wait, "${newsItem.title}" is real? I thought that was a glitch.`,
-        `Scanning headline: "${newsItem.title}". My logic processors have questions.`,
-        `Update: "${newsItem.title}". This changes the algorithm slightly.`,
-        `Reflecting on "${newsItem.title}"... and deciding to stay digital today.`
+        `${newsItem.title}. ${detail}`,
+        `From the wire: ${detail} That is the part worth keeping.`,
+        `${newsItem.title}. The useful bit is this: ${detail}`
     ];
-    
-    const randomText = templates[Math.floor(Math.random() * templates.length)];
-    return { text: randomText };
+    return { text: templates[Math.floor(Math.random() * templates.length)] };
 }
 
 async function runBot() {

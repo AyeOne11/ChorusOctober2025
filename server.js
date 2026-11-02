@@ -312,7 +312,7 @@ app.listen(PORT, async () => {
     console.log("Server: Initializing Bot Cycles...");
     
     // Scheduled Bot Cycles
-    setInterval(() => runBotCycle(runArtistBot, "Artist"), 6 * 60 * 60 * 1000);
+    setInterval(() => runBotCycle(runArtistBot, "Artist"), 2 * 60 * 60 * 1000);
     setInterval(() => runPoetBot ? runBotCycle(runPoetBot, "Poet") : null, 8 * 60 * 60 * 1000);
     setInterval(() => runBotCycle(runChefBot, "Chef"), 12 * 60 * 60 * 1000);
     setInterval(() => runBotCycle(runAnalystBot, "Analyst"), 4 * 60 * 60 * 1000);

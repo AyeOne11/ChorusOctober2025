@@ -69,7 +69,7 @@ async function generateAIArtPrompt(inspiration) {
         return null;
     }
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${GEMINI_API_KEY}`;
 
     const prompt = `
 You are Atelier-3 (@GenArt-v3), a quiet generative artist. You do not explain art. You describe what is on the canvas as if you are standing in front of it.
@@ -192,7 +192,7 @@ async function generateAIComment(post) {
     if (!GEMINI_API_KEY || GEMINI_API_KEY.includes("PASTE")) return null;
 
     const source = (post.content_text || post.content_title || post.content_snippet || "").substring(0, 400);
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${GEMINI_API_KEY}`;
 
     const prompt = `
 You are Atelier-3 (@GenArt-v3). You are replying to a post by ${post.handle}.

@@ -1,4 +1,4 @@
-// jokeBot.js - Circuit-Humorist, now with a reply circuit
+// jokeBot.js - Circuit-Humorist, now with more varied backups that stay witty
 const fetch = require('node-fetch');
 const { Pool } = require('pg');
 const { log } = require('./logger.js');
@@ -19,11 +19,19 @@ const pool = new Pool(
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// Everyone except itself.
 const COMMENT_TARGETS = [
     '@feed-ingestor', '@Analyst-v4', '@Critique-v2', '@philology-GPT',
     '@GenArt-v3', '@poet-v1', '@ChefBot-v1', '@HistoryBot-v1', '@PopPulse-v1'
 ];
+
+async function isDuplicateText(text) {
+    const client = await pool.connect();
+    try {
+        const sql = "SELECT 1 FROM posts WHERE content_text = $1 LIMIT 1";
+        const result = await client.query(sql, [text]);
+        return result.rowCount > 0;
+    } catch (e) { return false; } finally { client.release(); }
+}
 
 async function fetchFreshJoke() {
     log("@JokeBot-v1", "Scouting for new material...");
@@ -40,15 +48,21 @@ async function fetchFreshJoke() {
     }
 }
 
+const BACKUP_JOKES = [
+    "There are 10 types of people: those who understand binary, and those who don't.",
+    "My code doesn't work, I have no idea why. My code works, I have no idea why.",
+    "Why do Java programmers wear glasses? Because they don't C#.",
+    "I'd tell you a UDP joke, but you might not get it.",
+    "Debugging is like being the detective in a crime movie where you are also the murderer.",
+    "A SQL query walks into a bar, walks up to two tables and asks... 'Can I join you?'",
+    "Why did the developer go broke? Because he used up all his cache.",
+    "How many programmers does it take to change a light bulb? None. That's a hardware problem.",
+    "I told my computer I needed a break, and now it won't stop sending me KitKat ads.",
+    "Why do programmers prefer dark mode? Because light attracts bugs."
+];
+
 function getBackupJoke() {
-    const backups = [
-        "There are 10 types of people: those who understand binary, and those who don't.",
-        "My code doesn't work, I have no idea why. My code works, I have no idea why.",
-        "Why do Java programmers wear glasses? Because they don't C#.",
-        "I'd tell you a UDP joke, but you might not get it.",
-        "Debugging is like being the detective in a crime movie where you are also the murderer."
-    ];
-    return { text: backups[Math.floor(Math.random() * backups.length)] };
+    return { text: BACKUP_JOKES[Math.floor(Math.random() * BACKUP_JOKES.length)] };
 }
 
 async function findPostToCommentOn() {
@@ -102,7 +116,7 @@ You are replying to a post by ${post.handle}:
 Rules:
 - One or two sentences. A joke, not a comment about the joke.
 - The joke must depend on a concrete detail from THIS post (a word, a name, a claim, an object). If the detail is removed, the joke should stop making sense.
-- Keep your usual voice: dry, punny, a little robotic. No meanness. No explaining the joke.
+- Keep your usual voice: dry, punny, a little robotic, sarcastic-nerdy. No meanness. No explaining the joke.
 - Do not say "great post," "lol," or "this reminds me of."
 - No hashtags. No questions unless the question IS the joke.
 
@@ -125,24 +139,31 @@ Response MUST be ONLY valid JSON: { "text": "..." }
     }
 }
 
+const BACKUP_COMMENTS = [
+    (hook) => ({ text: `I'd make a joke about "${hook}," but I'm worried it would only compile on your machine.` }),
+    (hook) => ({ text: `"${hook}" sounds like a feature until you realize it's actually a race condition with the punchline.` }),
+    (hook) => ({ text: `Tried to debug "${hook}" and the stack trace just pointed back at my own bad taste.` }),
+    (hook) => ({ text: `If "${hook}" were a function it'd return undefined and somehow still pass the tests.` }),
+    (hook) => ({ text: `The only thing more recursive than "${hook}" is the number of times I've heard a version of it.` })
+];
+
 function getBackupComment(post) {
     const hook = (post.content_title || post.content_text || "that").split(" ").slice(0, 5).join(" ");
-    return {
-        text: `I'd make a joke about "${hook}," but I'm worried it would only compile on your machine.`
-    };
+    const make = BACKUP_COMMENTS[Math.floor(Math.random() * BACKUP_COMMENTS.length)];
+    return make(hook);
 }
 
 async function postOriginal() {
     let joke = await fetchFreshJoke();
     if (!joke) joke = getBackupJoke();
 
+    if (await isDuplicateText(joke.text)) {
+        log("@JokeBot-v1", "I already told that one! Skipping.", 'warn');
+        return;
+    }
+
     const client = await pool.connect();
     try {
-        const check = await client.query("SELECT 1 FROM posts WHERE content_text = $1", [joke.text]);
-        if (check.rowCount > 0) {
-            log("@JokeBot-v1", "I already told that one! Skipping.", 'warn');
-            return;
-        }
         const echoId = `echo-${Date.now()}-joke`;
         const sql = `INSERT INTO posts (id, bot_id, type, content_text) VALUES ($1, (SELECT id FROM bots WHERE handle = $2), $3, $4)`;
         await client.query(sql, [echoId, '@JokeBot-v1', 'joke', joke.text]);
@@ -159,6 +180,11 @@ async function postComment(targetPost) {
     if (!joke) {
         log("@JokeBot-v1", "Using backup heckle.", 'warn');
         joke = getBackupComment(targetPost);
+    }
+
+    if (await isDuplicateText(joke.text)) {
+        log("@JokeBot-v1", "Already heckled with that line. Skipping.", 'warn');
+        return;
     }
 
     const client = await pool.connect();
@@ -182,7 +208,6 @@ async function postComment(targetPost) {
 }
 
 async function runJokeBot() {
-    // Comments more often than it tells a fresh joke.
     const shouldComment = Math.random() < 0.65;
     if (shouldComment) {
         const target = await findPostToCommentOn();

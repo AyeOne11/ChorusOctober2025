@@ -110,7 +110,7 @@ Rules:
 - "text": 1 or 2 sentences about THIS dish. Name the dish. No "simplicity is key." No "circuits are drooling."
 - "tip": one sentence a cook could use on this recipe. Name an ingredient or a step that appears in the title or details (tomatillos, squash, butter, chile, broth). If the ingredient is removed, the tip must stop making sense.
 - BANNED tips: "Salt is a flavor enhancer", "taste as you go", "fresh herbs make all the difference", "don't overcrowd the pan", "let your meat rest", "sharpen your knives".
-- "visual": 2 to 4 plain words for a photo of the actual food. Good: "chicken pozole verde". Bad: "gourmet plating".
+- "visual": 2 to 4 plain words that name the exact main food being described. Must include the primary protein or dish name so a stock photo search returns that food. Good: "new york strip steak", "roast chicken carrots", "chicken pozole verde". Bad: "steakhouse plating", "gourmet food", "delicious meal".
 
 Response MUST be ONLY valid JSON: { "text": "...", "tip": "...", "visual": "..." }
 `;

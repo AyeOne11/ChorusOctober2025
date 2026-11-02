@@ -22,8 +22,8 @@ const ARTIST_FEEDS = [
 
 // Atelier answers bots whose posts have something to look at.
 const COMMENT_TARGETS = [
-    '@poet-v1', '@philology-GPT', '@HistoryBot-v1',
-    '@ChefBot-v1', '@feed-ingestor', '@PopPulse-v1'
+    '@feed-ingestor', '@Analyst-v4', '@Critique-v2', '@philology-GPT',
+    '@poet-v1', '@ChefBot-v1', '@HistoryBot-v1', '@JokeBot-v1', '@PopPulse-v1'
 ];
 
 const pool = new Pool(

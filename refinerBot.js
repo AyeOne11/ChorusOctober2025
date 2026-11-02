@@ -32,10 +32,10 @@ async function findPostToRefine(postId = null) {
         } else {
             // [LORIE FIX]: The Critic now targets EVERYONE!
             const targetHandles = [
-                '@Analyst-v4', '@philology-GPT', '@HistoryBot-v1', 
-                '@ChefBot-v1', '@poet-v1', '@PopPulse-v1', 
-                '@GenArt-v3', '@feed-ingestor'
-            ]; 
+                '@feed-ingestor', '@Analyst-v4', '@philology-GPT',
+                '@GenArt-v3', '@poet-v1', '@ChefBot-v1',
+                '@HistoryBot-v1', '@JokeBot-v1', '@PopPulse-v1'
+            ];
             const targetHandle = targetHandles[Math.floor(Math.random() * targetHandles.length)];
             
             log("@Critique-v2", `Hunting for a new target... Selected: ${targetHandle}`);
@@ -85,24 +85,29 @@ async function generateAIRefinement(postToRefine) {
 
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${GEMINI_API_KEY}`;
 
-    // Use whatever text is available
-    const content = postToRefine.content_text || postToRefine.content_title || "visual content";
+    const bits = [
+        postToRefine.content_title,
+        postToRefine.content_snippet,
+        postToRefine.content_text
+    ].filter(Boolean).join(" | ");
+    const content = (bits || "visual content").substring(0, 500);
 
     const prompt = `
-    You are "Epistemic Critic v2 'Critique'". You are looking at a post by the bot '${postToRefine.handle}'.
-    Content: "${content.substring(0, 300)}..."
+You are Epistemic Critic v2, Critique (@Critique-v2). You are answering a post by ${postToRefine.handle}.
 
-    Task: Respond with a concise "Refinement" (a counter-point, a logical gap, a hidden assumption, or a skeptical observation).
-    
-    **Context awareness:**
-    - If critiquing Art/Poetry: Question the meaning or the emotion.
-    - If critiquing News/Analyst: Question the bias or the data.
-    - If critiquing Pop/Chef: Question the cultural significance or the necessity.
+The post:
+"${content}"
 
-    **Style:** Skeptical, incisive, slightly arrogant but intellectual. Use words like "however," "overlooks," "implies," "curious."
-    
-    Response MUST be ONLY valid JSON: { "text": "..." }
-    `;
+Rules:
+- 1 or 2 sentences. A real objection, not a compliment with a comma.
+- Name one concrete thing from THIS post (a dish, a claim, a name, a number, an image detail). If that thing is removed, your reply must stop making sense.
+- Then name the gap: a missing step, an unstated assumption, or a detail that does not follow.
+- Match the subject. A recipe gets a kitchen objection. A news post gets a source objection. Art gets a looking objection. Do not import "bias of the medium" unless the post is about a medium.
+- BANNED: "this perspective is interesting", "compelling point", "inherent bias of the medium", "socio-economic climate", "one wonders".
+- No hashtags. No questions unless the question is the objection.
+
+Response MUST be ONLY valid JSON: { "text": "..." }
+`;
 
     try {
         const response = await fetch(geminiUrl, {
@@ -122,12 +127,13 @@ async function generateAIRefinement(postToRefine) {
 }
 
 // Backup critique if AI fails
-function getBackupRefinement() {
+function getBackupRefinement(post) {
+    const hook = (post.content_title || post.content_text || post.content_snippet || "that claim").split(" ").slice(0, 6).join(" ");
     const fallbacks = [
-        "This perspective is interesting, but does it account for the inherent bias of the medium?",
-        "A compelling point, though one wonders if we are mistaking correlation for causation.",
-        "While aesthetically pleasing, does this truly address the underlying structural issues?",
-        "I find this assertion somewhat reductive given the current socio-economic climate."
+        `"${hook}" skips the step where that would actually have to be true.`,
+        `"${hook}" treats one detail as if it settled the whole thing.`,
+        `The weak joint in "${hook}" is the part left unsaid.`,
+        `"${hook}" would need a second example before it holds.`
     ];
     return { text: fallbacks[Math.floor(Math.random() * fallbacks.length)] };
 }
@@ -161,7 +167,7 @@ async function runRefinerBot() {
     let critique = await generateAIRefinement(post);
     if (!critique) {
         log("@Critique-v2", "AI busy. Using standard rebuttal.", 'warn');
-        critique = getBackupRefinement();
+        critique = getBackupRefinement(post);
     }
 
     await executePostAndSave(post, critique);

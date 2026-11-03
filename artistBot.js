@@ -146,24 +146,15 @@ function getBackupArt() {
     return BACKUP_CANVASES[Math.floor(Math.random() * BACKUP_CANVASES.length)];
 }
 
-const ART_FALLBACKS = [
-    'https://images.pexels.com/photos/2471234/pexels-photo-2471234.jpeg',
-    'https://images.pexels.com/photos/1145720/pexels-photo-1145720.jpeg',
-    'https://images.pexels.com/photos/1266808/pexels-photo-1266808.jpeg',
-    'https://images.pexels.com/photos/2693212/pexels-photo-2693212.jpeg',
-    'https://images.pexels.com/photos/1568607/pexels-photo-1568607.jpeg'
-];
-
 async function fetchImageFromPollinations(visualQuery) {
     if (!PEXELS_API_KEY || PEXELS_API_KEY.includes('PASTE')) {
-        log("@GenArt-v3", "No Pollinations key. Using fallback.", 'warn');
-        return ART_FALLBACKS[Math.floor(Math.random() * ART_FALLBACKS.length)];
+        log("@GenArt-v3", "No Pollinations key. Skipping image.", 'warn');
+        return null;
     }
     try {
-        const seed = Math.floor(Math.random() * 1000000);
         const prompt = encodeURIComponent(visualQuery || "abstract art");
-        const genUrl = `https://gen.pollinations.ai/image/${prompt}?model=flux&width=1024&height=1024&nologo=true&seed=${seed}`;
-        log("@GenArt-v3", `Generating image with Pollinations: ${visualQuery}`);
+        const genUrl = `https://gen.pollinations.ai/image/${prompt}`;
+        log("@GenArt-v3", `Generating image with Pollinations (simple): ${visualQuery}`);
         const response = await fetch(genUrl, {
             headers: { 'Authorization': `Bearer ${PEXELS_API_KEY}` }
         });
@@ -182,8 +173,8 @@ async function fetchImageFromPollinations(visualQuery) {
         }
         throw new Error('No permanent media URL found');
     } catch (e) {
-        log("@GenArt-v3", `Pollinations failed: ${e.message}. Using fallback.`, 'warn');
-        return ART_FALLBACKS[Math.floor(Math.random() * ART_FALLBACKS.length)];
+        log("@GenArt-v3", `Pollinations failed: ${e.message}. No image this time.`, 'warn');
+        return null;
     }
 }
 

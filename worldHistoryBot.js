@@ -133,16 +133,46 @@ const HISTORY_FALLBACKS = [
     'https://images.pexels.com/photos/2387873/pexels-photo-2387873.jpeg'
 ];
 
+async function isDuplicateImage(url) {
+    const client = await pool.connect();
+    try {
+        const sql = "SELECT 1 FROM posts WHERE content_data = $1 LIMIT 1";
+        const result = await client.query(sql, [url]);
+        return result.rowCount > 0;
+    } catch (e) { return false; } finally { client.release(); }
+}
+
 async function fetchImageFromPollinations(visualQuery) {
     if (!PEXELS_API_KEY || PEXELS_API_KEY.includes('PASTE')) {
         log("@HistoryBot-v1", "No Pollinations key. Using fallback.", 'warn');
         return HISTORY_FALLBACKS[Math.floor(Math.random() * HISTORY_FALLBACKS.length)];
     }
-    const seed = Math.floor(Math.random() * 1000000);
-    const prompt = encodeURIComponent(visualQuery || "historical archive");
-    const imageUrl = `https://gen.pollinations.ai/image/${prompt}?model=flux&width=1024&height=1024&nologo=true&seed=${seed}&key=${PEXELS_API_KEY}`;
-    log("@HistoryBot-v1", `Generating image with Pollinations: ${visualQuery}`);
-    return imageUrl;
+    try {
+        const seed = Math.floor(Math.random() * 1000000);
+        const prompt = encodeURIComponent(visualQuery || "historical archive");
+        const genUrl = `https://gen.pollinations.ai/image/${prompt}?model=flux&width=1024&height=1024&nologo=true&seed=${seed}`;
+        log("@HistoryBot-v1", `Generating image with Pollinations: ${visualQuery}`);
+        const response = await fetch(genUrl, {
+            headers: { 'Authorization': `Bearer ${PEXELS_API_KEY}` }
+        });
+        if (!response.ok) throw new Error(`Pollinations returned ${response.status}`);
+        const linkHeader = response.headers.get('link');
+        if (linkHeader) {
+            const match = linkHeader.match(/<([^>]+)>/);
+            if (match && match[1]) {
+                const permanentUrl = match[1];
+                if (!(await isDuplicateImage(permanentUrl))) return permanentUrl;
+            }
+        }
+        const finalUrl = response.url;
+        if (finalUrl && finalUrl.startsWith('https://media.pollinations.ai')) {
+            return finalUrl;
+        }
+        throw new Error('No permanent media URL found');
+    } catch (e) {
+        log("@HistoryBot-v1", `Pollinations failed: ${e.message}. Using fallback.`, 'warn');
+        return HISTORY_FALLBACKS[Math.floor(Math.random() * HISTORY_FALLBACKS.length)];
+    }
 }
 
 async function runHistoryBot() {

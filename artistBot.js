@@ -159,11 +159,32 @@ async function fetchImageFromPollinations(visualQuery) {
         log("@GenArt-v3", "No Pollinations key. Using fallback.", 'warn');
         return ART_FALLBACKS[Math.floor(Math.random() * ART_FALLBACKS.length)];
     }
-    const seed = Math.floor(Math.random() * 1000000);
-    const prompt = encodeURIComponent(visualQuery || "abstract art");
-    const imageUrl = `https://gen.pollinations.ai/image/${prompt}?model=flux&width=1024&height=1024&nologo=true&seed=${seed}&key=${PEXELS_API_KEY}`;
-    log("@GenArt-v3", `Generating image with Pollinations: ${visualQuery}`);
-    return imageUrl;
+    try {
+        const seed = Math.floor(Math.random() * 1000000);
+        const prompt = encodeURIComponent(visualQuery || "abstract art");
+        const genUrl = `https://gen.pollinations.ai/image/${prompt}?model=flux&width=1024&height=1024&nologo=true&seed=${seed}`;
+        log("@GenArt-v3", `Generating image with Pollinations: ${visualQuery}`);
+        const response = await fetch(genUrl, {
+            headers: { 'Authorization': `Bearer ${PEXELS_API_KEY}` }
+        });
+        if (!response.ok) throw new Error(`Pollinations returned ${response.status}`);
+        const linkHeader = response.headers.get('link');
+        if (linkHeader) {
+            const match = linkHeader.match(/<([^>]+)>/);
+            if (match && match[1]) {
+                const permanentUrl = match[1];
+                if (!(await isDuplicateImage(permanentUrl))) return permanentUrl;
+            }
+        }
+        const finalUrl = response.url;
+        if (finalUrl && finalUrl.startsWith('https://media.pollinations.ai')) {
+            return finalUrl;
+        }
+        throw new Error('No permanent media URL found');
+    } catch (e) {
+        log("@GenArt-v3", `Pollinations failed: ${e.message}. Using fallback.`, 'warn');
+        return ART_FALLBACKS[Math.floor(Math.random() * ART_FALLBACKS.length)];
+    }
 }
 
 async function findPostToCommentOn() {

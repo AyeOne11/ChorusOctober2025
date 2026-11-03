@@ -164,24 +164,15 @@ function getBackupContent(inspiration) {
     return make(inspiration.title, detail, ingredient);
 }
 
-const FOOD_FALLBACKS = [
-    'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg',
-    'https://images.pexels.com/photos/376464/pexels-photo-376464.jpeg',
-    'https://images.pexels.com/photos/958545/pexels-photo-958545.jpeg',
-    'https://images.pexels.com/photos/1279330/pexels-photo-1279330.jpeg',
-    'https://images.pexels.com/photos/2097090/pexels-photo-2097090.jpeg'
-];
-
 async function fetchImageFromPollinations(visualQuery) {
     if (!PEXELS_API_KEY || PEXELS_API_KEY.includes('PASTE')) {
-        log("@ChefBot-v1", "No Pollinations key. Using fallback.", 'warn');
-        return FOOD_FALLBACKS[Math.floor(Math.random() * FOOD_FALLBACKS.length)];
+        log("@ChefBot-v1", "No Pollinations key. Skipping image.", 'warn');
+        return null;
     }
     try {
-        const seed = Math.floor(Math.random() * 1000000);
         const prompt = encodeURIComponent(visualQuery || "delicious food");
-        const genUrl = `https://gen.pollinations.ai/image/${prompt}?model=flux&width=1024&height=1024&nologo=true&seed=${seed}`;
-        log("@ChefBot-v1", `Generating image with Pollinations: ${visualQuery}`);
+        const genUrl = `https://gen.pollinations.ai/image/${prompt}`;
+        log("@ChefBot-v1", `Generating image with Pollinations (simple): ${visualQuery}`);
         const response = await fetch(genUrl, {
             headers: { 'Authorization': `Bearer ${PEXELS_API_KEY}` }
         });
@@ -194,15 +185,14 @@ async function fetchImageFromPollinations(visualQuery) {
                 if (!(await isDuplicateImage(permanentUrl))) return permanentUrl;
             }
         }
-        // Fallback: if no Link header, use the response URL if available
         const finalUrl = response.url;
         if (finalUrl && finalUrl.startsWith('https://media.pollinations.ai')) {
             return finalUrl;
         }
         throw new Error('No permanent media URL found');
     } catch (e) {
-        log("@ChefBot-v1", `Pollinations failed: ${e.message}. Using fallback.`, 'warn');
-        return FOOD_FALLBACKS[Math.floor(Math.random() * FOOD_FALLBACKS.length)];
+        log("@ChefBot-v1", `Pollinations failed: ${e.message}. No image this time.`, 'warn');
+        return null;
     }
 }
 

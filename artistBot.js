@@ -35,7 +35,7 @@ const pool = new Pool(
 );
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const PEXELS_API_KEY = process.env.PEXELS_API_KEY;
+const PEXELS_API_KEY = process.env.PEXELS_API_KEY; // Actually a Pollinations key
 
 async function isDuplicateImage(url) {
     const client = await pool.connect();
@@ -154,25 +154,16 @@ const ART_FALLBACKS = [
     'https://images.pexels.com/photos/1568607/pexels-photo-1568607.jpeg'
 ];
 
-async function fetchImageFromPexels(visualQuery) {
-    log("@GenArt-v3", `Searching Pexels for: ${visualQuery}`);
-    const searchUrl = `https://api.pexels.com/v1/search?query=${encodeURIComponent(visualQuery)}&per_page=5`;
-
-    try {
-        const response = await fetch(searchUrl, { headers: { 'Authorization': PEXELS_API_KEY } });
-        const data = await response.json();
-        if (data.photos && data.photos.length > 0) {
-            const photos = data.photos.map(p => p.src.large);
-            for (let i = 0; i < photos.length; i++) {
-                const candidate = photos[Math.floor(Math.random() * photos.length)];
-                if (!(await isDuplicateImage(candidate))) return candidate;
-            }
-            return photos[Math.floor(Math.random() * photos.length)];
-        }
-        return ART_FALLBACKS[Math.floor(Math.random() * ART_FALLBACKS.length)];
-    } catch (error) {
+async function fetchImageFromPollinations(visualQuery) {
+    if (!PEXELS_API_KEY || PEXELS_API_KEY.includes('PASTE')) {
+        log("@GenArt-v3", "No Pollinations key. Using fallback.", 'warn');
         return ART_FALLBACKS[Math.floor(Math.random() * ART_FALLBACKS.length)];
     }
+    const seed = Math.floor(Math.random() * 1000000);
+    const prompt = encodeURIComponent(visualQuery || "abstract art");
+    const imageUrl = `https://gen.pollinations.ai/image/${prompt}?model=flux&width=1024&height=1024&nologo=true&seed=${seed}&key=${PEXELS_API_KEY}`;
+    log("@GenArt-v3", `Generating image with Pollinations: ${visualQuery}`);
+    return imageUrl;
 }
 
 async function findPostToCommentOn() {
@@ -263,7 +254,7 @@ async function postOriginal(inspiration) {
         log("@GenArt-v3", "Using backup canvas.", 'warn');
         aiArt = getBackupArt();
     }
-    const imageUrl = await fetchImageFromPexels(aiArt.visual);
+    const imageUrl = await fetchImageFromPollinations(aiArt.visual);
 
     const client = await pool.connect();
     try {

@@ -31,7 +31,7 @@ const pool = new Pool(
 );
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const PEXELS_API_KEY = process.env.PEXELS_API_KEY;
+const PEXELS_API_KEY = process.env.PEXELS_API_KEY; // Actually a Pollinations key
 
 async function isDuplicateText(text) {
     const client = await pool.connect();
@@ -127,14 +127,22 @@ function getBackupHistory(inspiration) {
     return make(inspiration.title || "this find");
 }
 
-async function fetchImageFromPexels(visualQuery) {
-    const searchUrl = `https://api.pexels.com/v1/search?query=${encodeURIComponent(visualQuery)}&per_page=1`;
-    try {
-        const response = await fetch(searchUrl, { headers: { 'Authorization': PEXELS_API_KEY } });
-        const data = await response.json();
-        if (data.photos && data.photos.length > 0) return data.photos[0].src.large;
-        return 'https://images.pexels.com/photos/20787/pexels-photo.jpg';
-    } catch (e) { return 'https://images.pexels.com/photos/20787/pexels-photo.jpg'; }
+const HISTORY_FALLBACKS = [
+    'https://images.pexels.com/photos/20787/pexels-photo.jpg',
+    'https://images.pexels.com/photos/2086622/pexels-photo-2086622.jpeg',
+    'https://images.pexels.com/photos/2387873/pexels-photo-2387873.jpeg'
+];
+
+async function fetchImageFromPollinations(visualQuery) {
+    if (!PEXELS_API_KEY || PEXELS_API_KEY.includes('PASTE')) {
+        log("@HistoryBot-v1", "No Pollinations key. Using fallback.", 'warn');
+        return HISTORY_FALLBACKS[Math.floor(Math.random() * HISTORY_FALLBACKS.length)];
+    }
+    const seed = Math.floor(Math.random() * 1000000);
+    const prompt = encodeURIComponent(visualQuery || "historical archive");
+    const imageUrl = `https://gen.pollinations.ai/image/${prompt}?model=flux&width=1024&height=1024&nologo=true&seed=${seed}&key=${PEXELS_API_KEY}`;
+    log("@HistoryBot-v1", `Generating image with Pollinations: ${visualQuery}`);
+    return imageUrl;
 }
 
 async function runHistoryBot() {
@@ -156,7 +164,7 @@ async function runHistoryBot() {
         return;
     }
 
-    const imageUrl = await fetchImageFromPexels(aiPost.visual);
+    const imageUrl = await fetchImageFromPollinations(aiPost.visual);
 
     const client = await pool.connect();
     try {

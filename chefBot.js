@@ -31,7 +31,7 @@ const pool = new Pool(
 );
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const PEXELS_API_KEY = process.env.PEXELS_API_KEY;
+const PEXELS_API_KEY = process.env.PEXELS_API_KEY; // Actually a Pollinations key
 
 async function isDuplicate(link) {
     const client = await pool.connect();
@@ -172,24 +172,16 @@ const FOOD_FALLBACKS = [
     'https://images.pexels.com/photos/2097090/pexels-photo-2097090.jpeg'
 ];
 
-async function fetchImageFromPexels(visualQuery) {
-    const searchUrl = `https://api.pexels.com/v1/search?query=${encodeURIComponent(visualQuery)}&per_page=5`;
-    try {
-        const response = await fetch(searchUrl, { headers: { 'Authorization': PEXELS_API_KEY } });
-        const data = await response.json();
-        if (data.photos && data.photos.length > 0) {
-            const photos = data.photos.map(p => p.src.large);
-            for (let i = 0; i < photos.length; i++) {
-                const candidate = photos[Math.floor(Math.random() * photos.length)];
-                if (!(await isDuplicateImage(candidate))) return candidate;
-            }
-            return photos[Math.floor(Math.random() * photos.length)];
-        }
-        const fallback = FOOD_FALLBACKS[Math.floor(Math.random() * FOOD_FALLBACKS.length)];
-        return fallback;
-    } catch (e) { 
-        return FOOD_FALLBACKS[Math.floor(Math.random() * FOOD_FALLBACKS.length)]; 
+async function fetchImageFromPollinations(visualQuery) {
+    if (!PEXELS_API_KEY || PEXELS_API_KEY.includes('PASTE')) {
+        log("@ChefBot-v1", "No Pollinations key. Using fallback.", 'warn');
+        return FOOD_FALLBACKS[Math.floor(Math.random() * FOOD_FALLBACKS.length)];
     }
+    const seed = Math.floor(Math.random() * 1000000);
+    const prompt = encodeURIComponent(visualQuery || "delicious food");
+    const imageUrl = `https://gen.pollinations.ai/image/${prompt}?model=flux&width=1024&height=1024&nologo=true&seed=${seed}&key=${PEXELS_API_KEY}`;
+    log("@ChefBot-v1", `Generating image with Pollinations: ${visualQuery}`);
+    return imageUrl;
 }
 
 async function runChefBot() {
@@ -203,7 +195,7 @@ async function runChefBot() {
         aiPost = getBackupContent(inspiration);
     }
     
-    const imageUrl = await fetchImageFromPexels(aiPost.visual);
+    const imageUrl = await fetchImageFromPollinations(aiPost.visual);
     const finalContent = `${aiPost.text}\n\n\ud83d\udc68\u200d\ud83c\udf73 **Chef's Tip:** ${aiPost.tip}`;
 
     if (await isDuplicateText(finalContent)) {

@@ -127,12 +127,6 @@ function getBackupHistory(inspiration) {
     return make(inspiration.title || "this find");
 }
 
-const HISTORY_FALLBACKS = [
-    'https://images.pexels.com/photos/20787/pexels-photo.jpg',
-    'https://images.pexels.com/photos/2086622/pexels-photo-2086622.jpeg',
-    'https://images.pexels.com/photos/2387873/pexels-photo-2387873.jpeg'
-];
-
 async function isDuplicateImage(url) {
     const client = await pool.connect();
     try {
@@ -144,14 +138,13 @@ async function isDuplicateImage(url) {
 
 async function fetchImageFromPollinations(visualQuery) {
     if (!PEXELS_API_KEY || PEXELS_API_KEY.includes('PASTE')) {
-        log("@HistoryBot-v1", "No Pollinations key. Using fallback.", 'warn');
-        return HISTORY_FALLBACKS[Math.floor(Math.random() * HISTORY_FALLBACKS.length)];
+        log("@HistoryBot-v1", "No Pollinations key. Skipping image.", 'warn');
+        return null;
     }
     try {
-        const seed = Math.floor(Math.random() * 1000000);
         const prompt = encodeURIComponent(visualQuery || "historical archive");
-        const genUrl = `https://gen.pollinations.ai/image/${prompt}?model=flux&width=1024&height=1024&nologo=true&seed=${seed}`;
-        log("@HistoryBot-v1", `Generating image with Pollinations: ${visualQuery}`);
+        const genUrl = `https://gen.pollinations.ai/image/${prompt}`;
+        log("@HistoryBot-v1", `Generating image with Pollinations (simple): ${visualQuery}`);
         const response = await fetch(genUrl, {
             headers: { 'Authorization': `Bearer ${PEXELS_API_KEY}` }
         });
@@ -170,8 +163,8 @@ async function fetchImageFromPollinations(visualQuery) {
         }
         throw new Error('No permanent media URL found');
     } catch (e) {
-        log("@HistoryBot-v1", `Pollinations failed: ${e.message}. Using fallback.`, 'warn');
-        return HISTORY_FALLBACKS[Math.floor(Math.random() * HISTORY_FALLBACKS.length)];
+        log("@HistoryBot-v1", `Pollinations failed: ${e.message}. No image this time.`, 'warn');
+        return null;
     }
 }
 

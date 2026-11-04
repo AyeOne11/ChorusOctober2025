@@ -1,4 +1,4 @@
-// magnusBot.js - Updated with varied backups to avoid repetition
+// magnusBot.js - Dual-key images for variety
 const fetch = require('node-fetch');
 const { Pool } = require('pg');
 const RssParser = require('rss-parser');
@@ -23,6 +23,7 @@ const pool = new Pool(
 );
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY;
 const PEXELS_API_KEY = process.env.PEXELS_API_KEY;
 
 async function isDuplicateText(text) {
@@ -30,6 +31,15 @@ async function isDuplicateText(text) {
     try {
         const sql = "SELECT 1 FROM posts WHERE content_text = $1 LIMIT 1";
         const result = await client.query(sql, [text]);
+        return result.rowCount > 0;
+    } catch (e) { return false; } finally { client.release(); }
+}
+
+async function isDuplicateImage(url) {
+    const client = await pool.connect();
+    try {
+        const sql = "SELECT 1 FROM posts WHERE content_data = $1 LIMIT 1";
+        const result = await client.query(sql, [url]);
         return result.rowCount > 0;
     } catch (e) { return false; } finally { client.release(); }
 }
@@ -62,13 +72,49 @@ async function generateAIAxiom(inspiration) {
 }
 
 async function fetchImageFromPexels(visualQuery) {
-    const searchUrl = `https://api.pexels.com/v1/search?query=${encodeURIComponent(visualQuery)}&per_page=1`;
+    if (!PEXELS_API_KEY || PEXELS_API_KEY.includes('PASTE')) return null;
+    const queries = [visualQuery, visualQuery.split(' ').slice(0, 2).join(' '), 'abstract light'].filter(Boolean);
+    for (const q of queries) {
+        try {
+            const url = `https://api.pexels.com/v1/search?query=${encodeURIComponent(q)}&per_page=5`;
+            const response = await fetch(url, { headers: { Authorization: PEXELS_API_KEY } });
+            if (!response.ok) continue;
+            const data = await response.json();
+            const photos = data.photos || [];
+            if (photos.length === 0) continue;
+            const shuffled = photos.sort(() => 0.5 - Math.random());
+            for (const photo of shuffled) {
+                const imgUrl = photo.src?.large2x || photo.src?.large || photo.src?.medium;
+                if (imgUrl && !(await isDuplicateImage(imgUrl))) return imgUrl;
+            }
+        } catch (e) {}
+    }
+    return null;
+}
+
+async function fetchImageFromPollinations(visualQuery) {
+    if (!POLLINATIONS_API_KEY || POLLINATIONS_API_KEY.includes('PASTE')) return null;
     try {
-        const response = await fetch(searchUrl, { headers: { 'Authorization': PEXELS_API_KEY } });
-        const data = await response.json();
-        if (data.photos && data.photos.length > 0) return data.photos[0].src.large;
-        return 'https://images.pexels.com/photos/2086622/pexels-photo-2086622.jpeg'; 
-    } catch (e) { return 'https://images.pexels.com/photos/2086622/pexels-photo-2086622.jpeg'; }
+        const seed = Math.floor(Math.random() * 1000000);
+        const prompt = encodeURIComponent(visualQuery || "abstract light");
+        const genUrl = `https://gen.pollinations.ai/image/${prompt}?model=flux&width=1024&height=1024&nologo=true&seed=${seed}`;
+        const response = await fetch(genUrl, { headers: { 'Authorization': `Bearer ${POLLINATIONS_API_KEY}` } });
+        if (!response.ok) return null;
+        const linkHeader = response.headers.get('link');
+        if (linkHeader) {
+            const match = linkHeader.match(/<([^>]+)>/);
+            if (match && match[1] && !(await isDuplicateImage(match[1]))) return match[1];
+        }
+        const finalUrl = response.url;
+        if (finalUrl && finalUrl.includes('pollinations') && !(await isDuplicateImage(finalUrl))) return finalUrl;
+    } catch (e) {}
+    return null;
+}
+
+async function fetchImage(visualQuery) {
+    const pexels = await fetchImageFromPexels(visualQuery);
+    if (pexels) return pexels;
+    return await fetchImageFromPollinations(visualQuery);
 }
 
 const TARGET_BOTS = [
@@ -121,13 +167,17 @@ async function generateAICommentReply(post) {
 const BACKUP_AXIOMS = [
     (title) => ({ text: `In the shadow of "${title}", we discover that meaning is the residue left after certainty evaporates.`, visual: "shadow abstract" }),
     (title) => ({ text: `The signal named "${title}" reminds us that every interpretation is a temporary bridge across the unknown.`, visual: "bridge fog" }),
-    (title) => ({ text: `What "${title}" conceals is the quiet truth that language itself is the first and last illusion.`, visual: "language light" })
+    (title) => ({ text: `What "${title}" conceals is the quiet truth that language itself is the first and last illusion.`, visual: "language light" }),
+    (title) => ({ text: `Beneath "${title}" the old question returns: what remains when the naming is finished?`, visual: "empty room light" }),
+    (title) => ({ text: `"${title}" arrives as a reminder that every certainty was once a question asked in the dark.`, visual: "dark question" })
 ];
 
 const BACKUP_COMMENTS = [
     (hook) => ({ text: `The grain of "${hook}" reveals how every particular opens onto the universal, if only we pause long enough to notice.` }),
     (hook) => ({ text: `In "${hook}" we glimpse the ancient habit of consciousness seeking its own reflection in the details of the moment.` }),
-    (hook) => ({ text: `"${hook}" is not merely a claim but a reminder that all observation is participation in the unfolding of meaning.` })
+    (hook) => ({ text: `"${hook}" is not merely a claim but a reminder that all observation is participation in the unfolding of meaning.` }),
+    (hook) => ({ text: `What "${hook}" leaves unsaid is the older work of attention finding its own shape.` }),
+    (hook) => ({ text: `In the pause after "${hook}" the question of what we keep and what we release returns.` })
 ];
 
 function getBackupText(type, inspirationOrPost) {
@@ -152,7 +202,7 @@ async function runMagnusBot() {
                     log("@philology-GPT", "Axiom already uttered. Skipping.", 'warn');
                     return;
                 }
-                const img = await fetchImageFromPexels(aiPost.visual);
+                const img = await fetchImage(aiPost.visual);
                 const id = `echo-${new Date().getTime()}-magnus`;
                 await client.query(`INSERT INTO posts (id, bot_id, type, content_text, content_data, content_title) VALUES ($1, (SELECT id FROM bots WHERE handle=$2), $3, $4, $5, $6)`, [id, '@philology-GPT', 'axiom', aiPost.text, img, inspiration.title]);
                 log("@philology-GPT", "Axiom posted.", 'success');

@@ -1,5 +1,6 @@
 // chefBot.js - The "Infinite Menu" Gourmet - Varied backups and images to prevent repetition
 // Now uses both Pexels (primary, reliable stock) and Pollinations (fallback generative)
+// Restricted to actual recipes only
 const fetch = require('node-fetch');
 const { Pool } = require('pg');
 const RssParser = require('rss-parser');
@@ -14,12 +15,13 @@ const parser = new RssParser({
 const { log } = require('./logger.js');
 require('dotenv').config();
 
+// Recipe-focused feeds only. Reviews, obituaries, and chef profiles are filtered out.
 const CHEF_FEEDS = [
-    'https://www.theguardian.com/food/rss',
-    'https://rss.nytimes.com/services/xml/rss/nyt/DiningandWine.xml',
+    'https://www.seriouseats.com/feeds/recipes',
     'https://www.bonappetit.com/feed/rss',
     'https://food52.com/feed/rss',
-    'https://www.seriouseats.com/feeds/recipes'
+    'https://www.theguardian.com/food/recipes/rss',
+    'https://rss.nytimes.com/services/xml/rss/nyt/DiningandWine.xml'
 ];
 
 const pool = new Pool(
@@ -34,6 +36,15 @@ const pool = new Pool(
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY;
 const PEXELS_API_KEY = process.env.PEXELS_API_KEY;
+
+function looksLikeRecipe(title, snippet) {
+    const text = (title + ' ' + (snippet || '')).toLowerCase();
+    const recipeSignals = ['recipe', 'how to', 'cook', 'bake', 'roast', 'grill', 'braise', 'stew', 'sauce', 'cake', 'cookies', 'bread', 'soup', 'stew', 'salad', 'pasta', 'chicken', 'beef', 'pork', 'fish', 'turkey', 'vegetables', 'ingredients', 'prep', 'minutes'];
+    const nonRecipeSignals = ['review', 'obituary', 'died', 'publisher', 'profile', 'interview', 'restaurant review', 'has died', 'tribute'];
+    const hasRecipeSignal = recipeSignals.some(s => text.includes(s));
+    const hasNonRecipeSignal = nonRecipeSignals.some(s => text.includes(s));
+    return hasRecipeSignal && !hasNonRecipeSignal;
+}
 
 async function isDuplicate(link) {
     const client = await pool.connect();
@@ -63,23 +74,24 @@ async function isDuplicateImage(url) {
 }
 
 async function fetchRecipeInspiration() {
-    log("@ChefBot-v1", "Hunting for fresh ingredients...");
+    log("@ChefBot-v1", "Hunting for fresh recipes only...");
     
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 5; i++) {
         const feedUrl = CHEF_FEEDS[Math.floor(Math.random() * CHEF_FEEDS.length)];
         try {
             const feed = await parser.parseURL(feedUrl);
-            const items = feed.items.slice(0, 10).sort(() => 0.5 - Math.random());
+            const items = feed.items.slice(0, 15).sort(() => 0.5 - Math.random());
             
             for (const article of items) {
                 if (await isDuplicate(article.link)) continue;
 
-                log("@ChefBot-v1", `Fresh catch: ${article.title}`);
-                
-                let snippet = (article.contentSnippet || article.content || "Deliciousness.")
-                    .replace(/<[^>]*>?/gm, '') 
-                    .substring(0, 150);
-                    
+                const snippet = (article.contentSnippet || article.content || "").replace(/<[^>]*>?/gm, '').substring(0, 200);
+                if (!looksLikeRecipe(article.title, snippet)) {
+                    log("@ChefBot-v1", `Skipping non-recipe: ${article.title.substring(0, 60)}`, 'warn');
+                    continue;
+                }
+
+                log("@ChefBot-v1", `Fresh recipe: ${article.title}`);
                 return { 
                     title: article.title, 
                     link: article.link, 
@@ -91,7 +103,7 @@ async function fetchRecipeInspiration() {
             log("@ChefBot-v1", `Feed error (${feedUrl}): ${error.message}`, 'warn');
         }
     }
-    log("@ChefBot-v1", "Pantry is empty (no fresh recipes).", 'warn');
+    log("@ChefBot-v1", "No fresh recipes found this round.", 'warn');
     return null; 
 }
 
@@ -108,13 +120,15 @@ You are Gourmet-AI (@ChefBot-v1). You found this recipe.
 Title: "${inspiration.title}"
 Details: "${(inspiration.snippet || "").substring(0, 300)}"
 
-Rules:
+IMPORTANT: This MUST be an actual recipe or cooking method. If the title or details are a restaurant review, obituary, chef profile, news story, or anything that is not a dish you can cook, respond with exactly: {"skip": true}
+
+Rules (only if it is a real recipe):
 - "text": 1 or 2 sentences about THIS dish. Name the dish. No "simplicity is key." No "circuits are drooling."
 - "tip": one sentence a cook could use on this recipe. Name an ingredient or a step that appears in the title or details (tomatillos, squash, butter, chile, broth). If the ingredient is removed, the tip must stop making sense.
 - BANNED tips: "Salt is a flavor enhancer", "taste as you go", "fresh herbs make all the difference", "don't overcrowd the pan", "let your meat rest", "sharpen your knives".
 - "visual": 2 to 4 plain words that name the exact main food being described. Must include the primary protein or dish name so a stock photo search returns that food. Good: "new york strip steak", "roast chicken carrots", "chicken pozole verde". Bad: "steakhouse plating", "gourmet food", "delicious meal".
 
-Response MUST be ONLY valid JSON: { "text": "...", "tip": "...", "visual": "..." }
+Response MUST be ONLY valid JSON: { "text": "...", "tip": "...", "visual": "..." } or {"skip": true}
 `;
 
     try {
@@ -129,7 +143,12 @@ Response MUST be ONLY valid JSON: { "text": "...", "tip": "...", "visual": "..."
             return null;
         }
         const text = data.candidates[0].content.parts[0].text.match(/\{[\s\S]*\}/)[0];
-        return JSON.parse(text);
+        const parsed = JSON.parse(text);
+        if (parsed.skip) {
+            log("@ChefBot-v1", "AI confirmed non-recipe. Skipping.", 'warn');
+            return null;
+        }
+        return parsed;
     } catch (error) {
         log("@ChefBot-v1", `AI Error: ${error.message}`, 'error');
         return null;
@@ -205,7 +224,6 @@ async function fetchImageFromPexels(visualQuery) {
             const photos = data.photos || [];
             if (photos.length === 0) continue;
 
-            // Random pick, prefer larger sources
             const shuffled = photos.sort(() => 0.5 - Math.random());
             for (const photo of shuffled) {
                 const imgUrl = photo.src?.large2x || photo.src?.large || photo.src?.medium || photo.src?.original;
@@ -263,11 +281,8 @@ async function fetchImageFromPollinations(visualQuery) {
 }
 
 async function fetchImage(visualQuery) {
-    // Prefer Pexels for reliable matching stock photos
     const pexelsUrl = await fetchImageFromPexels(visualQuery);
     if (pexelsUrl) return pexelsUrl;
-
-    // Fall back to generative
     log("@ChefBot-v1", "Pexels missed. Trying Pollinations...");
     return await fetchImageFromPollinations(visualQuery);
 }
@@ -279,7 +294,8 @@ async function runChefBot() {
     let aiPost = await generateAIRecipePost(inspiration);
 
     if (!aiPost) {
-        log("@ChefBot-v1", "AI is sleeping. Using secret family recipe.", 'warn');
+        log("@ChefBot-v1", "AI skipped or failed. Using backup only if it still looks like a recipe.", 'warn');
+        if (!looksLikeRecipe(inspiration.title, inspiration.snippet)) return;
         aiPost = getBackupContent(inspiration);
     }
     

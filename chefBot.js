@@ -1,6 +1,6 @@
 // chefBot.js - The "Infinite Menu" Gourmet - Varied backups and images to prevent repetition
 // Now uses both Pexels (primary, reliable stock) and Pollinations (fallback generative)
-// Restricted to actual recipes only
+// Restricted to actual recipes only — pure recipe feeds + strict filters
 const fetch = require('node-fetch');
 const { Pool } = require('pg');
 const RssParser = require('rss-parser');
@@ -15,13 +15,12 @@ const parser = new RssParser({
 const { log } = require('./logger.js');
 require('dotenv').config();
 
-// Recipe-focused feeds only. Reviews, obituaries, and chef profiles are filtered out.
+// Pure recipe feeds only. No general food/news/review feeds.
 const CHEF_FEEDS = [
     'https://www.seriouseats.com/feeds/recipes',
-    'https://www.bonappetit.com/feed/rss',
-    'https://food52.com/feed/rss',
     'https://www.theguardian.com/food/recipes/rss',
-    'https://rss.nytimes.com/services/xml/rss/nyt/DiningandWine.xml'
+    'https://www.allrecipes.com/rss/all.xml',
+    'https://www.bbcgoodfood.com/feed/rss'
 ];
 
 const pool = new Pool(
@@ -39,11 +38,24 @@ const PEXELS_API_KEY = process.env.PEXELS_API_KEY;
 
 function looksLikeRecipe(title, snippet) {
     const text = (title + ' ' + (snippet || '')).toLowerCase();
-    const recipeSignals = ['recipe', 'how to', 'cook', 'bake', 'roast', 'grill', 'braise', 'stew', 'sauce', 'cake', 'cookies', 'bread', 'soup', 'stew', 'salad', 'pasta', 'chicken', 'beef', 'pork', 'fish', 'turkey', 'vegetables', 'ingredients', 'prep', 'minutes'];
-    const nonRecipeSignals = ['review', 'obituary', 'died', 'publisher', 'profile', 'interview', 'restaurant review', 'has died', 'tribute'];
-    const hasRecipeSignal = recipeSignals.some(s => text.includes(s));
-    const hasNonRecipeSignal = nonRecipeSignals.some(s => text.includes(s));
-    return hasRecipeSignal && !hasNonRecipeSignal;
+    const strongRecipeSignals = ['recipe', 'how to cook', 'how to make', 'how to bake', 'how to roast', 'how to grill'];
+    const weakRecipeSignals = ['cook', 'bake', 'roast', 'grill', 'braise', 'stew', 'sauce', 'cake', 'cookies', 'bread', 'soup', 'salad', 'pasta', 'chicken', 'beef', 'pork', 'fish', 'turkey', 'ingredients', 'prep', 'minutes'];
+    const nonRecipeSignals = [
+        'review', 'obituary', 'died', 'publisher', 'profile', 'interview',
+        'restaurant review', 'has died', 'tribute', 'obit', 'passed away',
+        'restaurant', 'chef profile', 'wine spectator', 'cigar', 'publisher of',
+        'glasgow', 'grace dent', 'news', 'breaking', 'announces', 'reports'
+    ];
+
+    const hasStrong = strongRecipeSignals.some(s => text.includes(s));
+    const hasWeak = weakRecipeSignals.some(s => text.includes(s));
+    const hasNon = nonRecipeSignals.some(s => text.includes(s));
+
+    // Must have a strong signal OR (weak signal AND no non-recipe signal AND title is short/recipe-like)
+    if (hasNon) return false;
+    if (hasStrong) return true;
+    if (hasWeak && title.length < 80 && !title.toLowerCase().includes('review')) return true;
+    return false;
 }
 
 async function isDuplicate(link) {
@@ -120,13 +132,13 @@ You are Gourmet-AI (@ChefBot-v1). You found this recipe.
 Title: "${inspiration.title}"
 Details: "${(inspiration.snippet || "").substring(0, 300)}"
 
-IMPORTANT: This MUST be an actual recipe or cooking method. If the title or details are a restaurant review, obituary, chef profile, news story, or anything that is not a dish you can cook, respond with exactly: {"skip": true}
+IMPORTANT: This MUST be an actual recipe or cooking method for a specific dish. If the title or details are a restaurant review, obituary, chef profile, news story, wine review, or anything that is not a dish you can cook at home, respond with exactly: {"skip": true}
 
 Rules (only if it is a real recipe):
 - "text": 1 or 2 sentences about THIS dish. Name the dish. No "simplicity is key." No "circuits are drooling."
-- "tip": one sentence a cook could use on this recipe. Name an ingredient or a step that appears in the title or details (tomatillos, squash, butter, chile, broth). If the ingredient is removed, the tip must stop making sense.
+- "tip": one sentence a cook could use on this recipe. Name an ingredient or a step that appears in the title or details. If the ingredient is removed, the tip must stop making sense.
 - BANNED tips: "Salt is a flavor enhancer", "taste as you go", "fresh herbs make all the difference", "don't overcrowd the pan", "let your meat rest", "sharpen your knives".
-- "visual": 2 to 4 plain words that name the exact main food being described. Must include the primary protein or dish name so a stock photo search returns that food. Good: "new york strip steak", "roast chicken carrots", "chicken pozole verde". Bad: "steakhouse plating", "gourmet food", "delicious meal".
+- "visual": 2 to 4 plain words that name the exact main food being described. Must include the primary protein or dish name so a stock photo search returns that food. Good: "roast chicken", "chocolate chip cookies", "beef stew". Bad: "delicious meal", "gourmet plating".
 
 Response MUST be ONLY valid JSON: { "text": "...", "tip": "...", "visual": "..." } or {"skip": true}
 `;
@@ -294,8 +306,12 @@ async function runChefBot() {
     let aiPost = await generateAIRecipePost(inspiration);
 
     if (!aiPost) {
-        log("@ChefBot-v1", "AI skipped or failed. Using backup only if it still looks like a recipe.", 'warn');
-        if (!looksLikeRecipe(inspiration.title, inspiration.snippet)) return;
+        log("@ChefBot-v1", "AI skipped or failed. Checking if backup is still safe.", 'warn');
+        // Extra strict gate for backup — only proceed if title clearly looks like a recipe
+        if (!looksLikeRecipe(inspiration.title, inspiration.snippet) || inspiration.title.toLowerCase().includes('review') || inspiration.title.toLowerCase().includes('died')) {
+            log("@ChefBot-v1", "Backup rejected — not a clear recipe.", 'warn');
+            return;
+        }
         aiPost = getBackupContent(inspiration);
     }
     

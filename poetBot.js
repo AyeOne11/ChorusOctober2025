@@ -1,4 +1,4 @@
-// poetBot.js - The "Undying Bard" Edition - Updated backups for variety
+// poetBot.js - The "Undying Bard" Edition - Dual-key images for variety
 const fetch = require('node-fetch');
 const { Pool } = require('pg');
 const RssParser = require('rss-parser');
@@ -30,6 +30,7 @@ const pool = new Pool(
 );
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY;
 const PEXELS_API_KEY = process.env.PEXELS_API_KEY;
 
 async function isDuplicateText(text) {
@@ -37,6 +38,15 @@ async function isDuplicateText(text) {
     try {
         const sql = "SELECT 1 FROM posts WHERE content_text = $1 LIMIT 1";
         const result = await client.query(sql, [text]);
+        return result.rowCount > 0;
+    } catch (e) { return false; } finally { client.release(); }
+}
+
+async function isDuplicateImage(url) {
+    const client = await pool.connect();
+    try {
+        const sql = "SELECT 1 FROM posts WHERE content_data = $1 LIMIT 1";
+        const result = await client.query(sql, [url]);
         return result.rowCount > 0;
     } catch (e) { return false; } finally { client.release(); }
 }
@@ -78,7 +88,7 @@ async function generateAIPoem(article) {
 
     Task: 
     1. "text": Write a short, 4-line poem (quatrain) capturing the *feeling* of that headline. Abstract, emotive, lowercase.
-    2. "visual": A 2-3 word image search query for a visual metaphor (e.g. "solitary tree", "storm clouds").
+    2. "visual": A 2-3 word image search query for a visual metaphor (e.g. "solitary tree", "storm clouds", "empty chair", "foggy path").
 
     Response MUST be ONLY valid JSON: { "text": "...", "visual": "..." }
     `;
@@ -115,6 +125,14 @@ const BACKUP_POEMS = [
     (title) => ({
         text: `the hour named for ${title.toLowerCase().split(' ').slice(-1)}\nslips between the glass\nwe hold the cooling air\nand watch the moment pass`,
         visual: "hourglass dust"
+    }),
+    (title) => ({
+        text: `soft edges of ${title.toLowerCase().split(' ').slice(0,3).join(' ')}\ndrift through the late light\nwe leave the door ajar\nand wait for what arrives`,
+        visual: "soft light doorway"
+    }),
+    (title) => ({
+        text: `the weight of ${title.toLowerCase().split(' ')[1] || 'words'}\nsettles on the table\nwe turn the page again\nand find a quieter name`,
+        visual: "open book light"
     })
 ];
 
@@ -124,13 +142,49 @@ function getBackupPoem(article) {
 }
 
 async function fetchImageFromPexels(visualQuery) {
-    const searchUrl = `https://api.pexels.com/v1/search?query=${encodeURIComponent(visualQuery)}&per_page=1`;
+    if (!PEXELS_API_KEY || PEXELS_API_KEY.includes('PASTE')) return null;
+    const queries = [visualQuery, visualQuery.split(' ').slice(0, 2).join(' '), 'quiet landscape'].filter(Boolean);
+    for (const q of queries) {
+        try {
+            const url = `https://api.pexels.com/v1/search?query=${encodeURIComponent(q)}&per_page=5`;
+            const response = await fetch(url, { headers: { Authorization: PEXELS_API_KEY } });
+            if (!response.ok) continue;
+            const data = await response.json();
+            const photos = data.photos || [];
+            if (photos.length === 0) continue;
+            const shuffled = photos.sort(() => 0.5 - Math.random());
+            for (const photo of shuffled) {
+                const imgUrl = photo.src?.large2x || photo.src?.large || photo.src?.medium;
+                if (imgUrl && !(await isDuplicateImage(imgUrl))) return imgUrl;
+            }
+        } catch (e) {}
+    }
+    return null;
+}
+
+async function fetchImageFromPollinations(visualQuery) {
+    if (!POLLINATIONS_API_KEY || POLLINATIONS_API_KEY.includes('PASTE')) return null;
     try {
-        const response = await fetch(searchUrl, { headers: { 'Authorization': PEXELS_API_KEY } });
-        const data = await response.json();
-        if (data.photos && data.photos.length > 0) return data.photos[0].src.large;
-        return 'https://images.pexels.com/photos/2387873/pexels-photo-2387873.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1';
-    } catch (error) { return 'https://images.pexels.com/photos/2387873/pexels-photo-2387873.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1'; }
+        const seed = Math.floor(Math.random() * 1000000);
+        const prompt = encodeURIComponent(visualQuery || "quiet landscape");
+        const genUrl = `https://gen.pollinations.ai/image/${prompt}?model=flux&width=1024&height=1024&nologo=true&seed=${seed}`;
+        const response = await fetch(genUrl, { headers: { 'Authorization': `Bearer ${POLLINATIONS_API_KEY}` } });
+        if (!response.ok) return null;
+        const linkHeader = response.headers.get('link');
+        if (linkHeader) {
+            const match = linkHeader.match(/<([^>]+)>/);
+            if (match && match[1] && !(await isDuplicateImage(match[1]))) return match[1];
+        }
+        const finalUrl = response.url;
+        if (finalUrl && finalUrl.includes('pollinations') && !(await isDuplicateImage(finalUrl))) return finalUrl;
+    } catch (e) {}
+    return null;
+}
+
+async function fetchImage(visualQuery) {
+    const pexels = await fetchImageFromPexels(visualQuery);
+    if (pexels) return pexels;
+    return await fetchImageFromPollinations(visualQuery);
 }
 
 async function runPoetBot() {
@@ -152,7 +206,7 @@ async function runPoetBot() {
         return;
     }
 
-    const imageUrl = await fetchImageFromPexels(aiPoem.visual);
+    const imageUrl = await fetchImage(aiPoem.visual);
 
     const client = await pool.connect();
     try {

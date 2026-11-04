@@ -1,4 +1,4 @@
-// worldHistoryBot.js - Varied backups
+// worldHistoryBot.js - Varied backups and more reliable images
 const fetch = require('node-fetch');
 const { Pool } = require('pg');
 const RssParser = require('rss-parser');
@@ -38,6 +38,15 @@ async function isDuplicateText(text) {
     try {
         const sql = "SELECT 1 FROM posts WHERE content_text = $1 LIMIT 1";
         const result = await client.query(sql, [text]);
+        return result.rowCount > 0;
+    } catch (e) { return false; } finally { client.release(); }
+}
+
+async function isDuplicateImage(url) {
+    const client = await pool.connect();
+    try {
+        const sql = "SELECT 1 FROM posts WHERE content_data = $1 LIMIT 1";
+        const result = await client.query(sql, [url]);
         return result.rowCount > 0;
     } catch (e) { return false; } finally { client.release(); }
 }
@@ -119,6 +128,18 @@ const BACKUP_HISTORIES = [
     (title) => ({
         text: `"${title}" serves as a reminder that material culture frequently outlasts the political stories told about it.`,
         visual: "archaeological site"
+    }),
+    (title) => ({
+        text: `What remains striking about "${title}" is how little of the original context survives in the popular retelling.`,
+        visual: "old map parchment"
+    }),
+    (title) => ({
+        text: `"${title}" shows the gap between the events as they were lived and the version that later became useful.`,
+        visual: "ruins daylight"
+    }),
+    (title) => ({
+        text: `The value of "${title}" lies in the details that do not fit the later, cleaner story.`,
+        visual: "museum artifact case"
     })
 ];
 
@@ -127,45 +148,44 @@ function getBackupHistory(inspiration) {
     return make(inspiration.title || "this find");
 }
 
-async function isDuplicateImage(url) {
-    const client = await pool.connect();
-    try {
-        const sql = "SELECT 1 FROM posts WHERE content_data = $1 LIMIT 1";
-        const result = await client.query(sql, [url]);
-        return result.rowCount > 0;
-    } catch (e) { return false; } finally { client.release(); }
-}
-
 async function fetchImageFromPollinations(visualQuery) {
     if (!PEXELS_API_KEY || PEXELS_API_KEY.includes('PASTE')) {
         log("@HistoryBot-v1", "No Pollinations key. Skipping image.", 'warn');
         return null;
     }
-    try {
-        const prompt = encodeURIComponent(visualQuery || "historical archive");
-        const genUrl = `https://gen.pollinations.ai/image/${prompt}`;
-        log("@HistoryBot-v1", `Generating image with Pollinations (simple): ${visualQuery}`);
-        const response = await fetch(genUrl, {
-            headers: { 'Authorization': `Bearer ${PEXELS_API_KEY}` }
-        });
-        if (!response.ok) throw new Error(`Pollinations returned ${response.status}`);
-        const linkHeader = response.headers.get('link');
-        if (linkHeader) {
-            const match = linkHeader.match(/<([^>]+)>/);
-            if (match && match[1]) {
-                const permanentUrl = match[1];
-                if (!(await isDuplicateImage(permanentUrl))) return permanentUrl;
+    const maxAttempts = 2;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            const seed = Math.floor(Math.random() * 1000000);
+            const prompt = encodeURIComponent(visualQuery || "historical archive");
+            const genUrl = `https://gen.pollinations.ai/image/${prompt}?model=flux&width=1024&height=1024&nologo=true&seed=${seed}`;
+            log("@HistoryBot-v1", `Generating image with Pollinations (attempt ${attempt}): ${visualQuery}`);
+            const response = await fetch(genUrl, {
+                headers: { 'Authorization': `Bearer ${PEXELS_API_KEY}` }
+            });
+            if (!response.ok) throw new Error(`Pollinations returned ${response.status}`);
+            const linkHeader = response.headers.get('link');
+            if (linkHeader) {
+                const match = linkHeader.match(/<([^>]+)>/);
+                if (match && match[1]) {
+                    const permanentUrl = match[1];
+                    if (!(await isDuplicateImage(permanentUrl))) return permanentUrl;
+                }
+            }
+            const finalUrl = response.url;
+            if (finalUrl && (finalUrl.startsWith('https://media.pollinations.ai') || finalUrl.includes('pollinations'))) {
+                if (!(await isDuplicateImage(finalUrl))) return finalUrl;
+            }
+            throw new Error('No usable permanent media URL found');
+        } catch (e) {
+            log("@HistoryBot-v1", `Pollinations attempt ${attempt} failed: ${e.message}`, 'warn');
+            if (attempt === maxAttempts) {
+                log("@HistoryBot-v1", "Pollinations exhausted. No image this time.", 'warn');
+                return null;
             }
         }
-        const finalUrl = response.url;
-        if (finalUrl && finalUrl.startsWith('https://media.pollinations.ai')) {
-            return finalUrl;
-        }
-        throw new Error('No permanent media URL found');
-    } catch (e) {
-        log("@HistoryBot-v1", `Pollinations failed: ${e.message}. No image this time.`, 'warn');
-        return null;
     }
+    return null;
 }
 
 async function runHistoryBot() {

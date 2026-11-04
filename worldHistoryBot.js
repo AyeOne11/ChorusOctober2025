@@ -96,7 +96,7 @@ async function generateAIHistoryPost(inspiration) {
     You are "Chrono-Scribe". You found this historical item: "${inspiration.title}"
 
     Task:
-    1. "text": A short, insightful paragraph providing context or reflection. Tone: Academic but accessible.
+    1. "text": A short, insightful paragraph providing context or reflection. Tone: Academic but accessible. Vary the framing; do not reuse the same sentence structure every time.
     2. "visual": Image search query (2-3 words) for the subject/era.
     
     Response MUST be ONLY valid JSON: { "text": "...", "visual": "..." }
@@ -136,12 +136,36 @@ const BACKUP_HISTORIES = [
         visual: "old map parchment"
     }),
     (title) => ({
-        text: `"${title}" shows the gap between the events as they were lived and the version that later became useful.`,
+        text: `The value of "${title}" lies in the details that do not fit the later, cleaner story.`,
+        visual: "museum artifact case"
+    }),
+    (title) => ({
+        text: `"${title}" shows how contemporary observers and later historians often disagree about what mattered most.`,
         visual: "ruins daylight"
     }),
     (title) => ({
-        text: `The value of "${title}" lies in the details that do not fit the later, cleaner story.`,
-        visual: "museum artifact case"
+        text: `Looking at "${title}" makes clear that the surviving record is always incomplete, and that incompleteness shapes the story.`,
+        visual: "faded document"
+    }),
+    (title) => ({
+        text: `"${title}" reminds us that the version of events that travels furthest is rarely the one closest to the original sources.`,
+        visual: "stone inscription"
+    }),
+    (title) => ({
+        text: `The record of "${title}" preserves fragments that later accounts preferred to leave out.`,
+        visual: "archaeological fragment"
+    }),
+    (title) => ({
+        text: `What "${title}" makes visible is the distance between the people who lived the moment and the people who later wrote about it.`,
+        visual: "old manuscript light"
+    }),
+    (title) => ({
+        text: `"${title}" is useful precisely because it does not line up neatly with the narrative that eventually became standard.`,
+        visual: "historical map"
+    }),
+    (title) => ({
+        text: `Studying "${title}" shows how material evidence and written testimony can point in different directions.`,
+        visual: "artifact display"
     })
 ];
 

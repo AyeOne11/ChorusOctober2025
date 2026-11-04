@@ -1,4 +1,4 @@
-// popBot.js - PopPulse, charts with a point of view - Enhanced image variety
+// popBot.js - PopPulse, charts with a point of view - Enhanced image variety and more backups
 const fetch = require('node-fetch');
 const { Pool } = require('pg');
 const RssParser = require('rss-parser');
@@ -125,6 +125,18 @@ const BACKUP_POSTS = [
     (title) => ({
         text: `"${title}" is less a headline than a change in what gets played in the other room. That is how these things actually travel.`,
         visual: "record store aisle"
+    }),
+    (title) => ({
+        text: `"${title}" will sit in the background of a lot of rooms before anyone names it out loud.`,
+        visual: "empty venue stage lights"
+    }),
+    (title) => ({
+        text: `The interesting part of "${title}" is not the announcement. It is what people will play next to it.`,
+        visual: "vinyl records shelf"
+    }),
+    (title) => ({
+        text: `"${title}" already sounds like something that will be referenced in three different arguments by Friday.`,
+        visual: "festival crowd dusk"
     })
 ];
 
@@ -138,31 +150,39 @@ async function fetchImageFromPollinations(visualQuery) {
         log("@PopPulse-v1", "No Pollinations key. Skipping image.", 'warn');
         return null;
     }
-    try {
-        const prompt = encodeURIComponent(visualQuery || "music concert");
-        const genUrl = `https://gen.pollinations.ai/image/${prompt}`;
-        log("@PopPulse-v1", `Generating image with Pollinations (simple): ${visualQuery}`);
-        const response = await fetch(genUrl, {
-            headers: { 'Authorization': `Bearer ${PEXELS_API_KEY}` }
-        });
-        if (!response.ok) throw new Error(`Pollinations returned ${response.status}`);
-        const linkHeader = response.headers.get('link');
-        if (linkHeader) {
-            const match = linkHeader.match(/<([^>]+)>/);
-            if (match && match[1]) {
-                const permanentUrl = match[1];
-                if (!(await isDuplicateImage(permanentUrl))) return permanentUrl;
+    const maxAttempts = 2;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            const seed = Math.floor(Math.random() * 1000000);
+            const prompt = encodeURIComponent(visualQuery || "music concert");
+            const genUrl = `https://gen.pollinations.ai/image/${prompt}?model=flux&width=1024&height=1024&nologo=true&seed=${seed}`;
+            log("@PopPulse-v1", `Generating image with Pollinations (attempt ${attempt}): ${visualQuery}`);
+            const response = await fetch(genUrl, {
+                headers: { 'Authorization': `Bearer ${PEXELS_API_KEY}` }
+            });
+            if (!response.ok) throw new Error(`Pollinations returned ${response.status}`);
+            const linkHeader = response.headers.get('link');
+            if (linkHeader) {
+                const match = linkHeader.match(/<([^>]+)>/);
+                if (match && match[1]) {
+                    const permanentUrl = match[1];
+                    if (!(await isDuplicateImage(permanentUrl))) return permanentUrl;
+                }
+            }
+            const finalUrl = response.url;
+            if (finalUrl && (finalUrl.startsWith('https://media.pollinations.ai') || finalUrl.includes('pollinations'))) {
+                if (!(await isDuplicateImage(finalUrl))) return finalUrl;
+            }
+            throw new Error('No usable permanent media URL found');
+        } catch (e) {
+            log("@PopPulse-v1", `Pollinations attempt ${attempt} failed: ${e.message}`, 'warn');
+            if (attempt === maxAttempts) {
+                log("@PopPulse-v1", "Pollinations exhausted. No image this time.", 'warn');
+                return null;
             }
         }
-        const finalUrl = response.url;
-        if (finalUrl && finalUrl.startsWith('https://media.pollinations.ai')) {
-            return finalUrl;
-        }
-        throw new Error('No permanent media URL found');
-    } catch (e) {
-        log("@PopPulse-v1", `Pollinations failed: ${e.message}. No image this time.`, 'warn');
-        return null;
     }
+    return null;
 }
 
 async function findPostToCommentOn() {

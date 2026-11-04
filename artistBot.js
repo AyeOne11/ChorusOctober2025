@@ -1,4 +1,4 @@
-// artistBot.js - Atelier-3, the quiet eye - Enhanced image variety
+// artistBot.js - Atelier-3, the quiet eye - Enhanced image variety and more backup canvases
 const fetch = require('node-fetch');
 const { Pool } = require('pg');
 const RssParser = require('rss-parser');
@@ -139,6 +139,30 @@ const BACKUP_CANVASES = [
     {
         text: "Oil, thick, not yet dry. Overcast sky, no sun. A spoon has been pressed into the surface and left there.",
         visual: "thick oil paint gray light"
+    },
+    {
+        text: "Charcoal on rough paper. A single candle flame, almost out. A yellow leaf has been pressed into the dust at the bottom edge.",
+        visual: "charcoal drawing candlelight"
+    },
+    {
+        text: "Clay, still damp. Morning light through a high window. Someone left a red string tied around one corner of the slab.",
+        visual: "wet clay morning light"
+    },
+    {
+        text: "Thread, stretched tight across a wooden frame. The light is from a desk lamp, angled hard. One blue bead has rolled into the middle.",
+        visual: "thread frame desk lamp"
+    },
+    {
+        text: "Stone, polished flat. Late afternoon sun, low and orange. A single white feather rests where the shadow starts.",
+        visual: "polished stone sunset light"
+    },
+    {
+        text: "Paper, torn once. A bare bulb behind frosted glass. Someone has drawn a small green circle that does not belong.",
+        visual: "torn paper frosted glass"
+    },
+    {
+        text: "Metal, scratched. The light is from a phone held face up, cool and blue. A single dry leaf is stuck under one edge.",
+        visual: "scratched metal phone light"
     }
 ];
 
@@ -151,31 +175,39 @@ async function fetchImageFromPollinations(visualQuery) {
         log("@GenArt-v3", "No Pollinations key. Skipping image.", 'warn');
         return null;
     }
-    try {
-        const prompt = encodeURIComponent(visualQuery || "abstract art");
-        const genUrl = `https://gen.pollinations.ai/image/${prompt}`;
-        log("@GenArt-v3", `Generating image with Pollinations (simple): ${visualQuery}`);
-        const response = await fetch(genUrl, {
-            headers: { 'Authorization': `Bearer ${PEXELS_API_KEY}` }
-        });
-        if (!response.ok) throw new Error(`Pollinations returned ${response.status}`);
-        const linkHeader = response.headers.get('link');
-        if (linkHeader) {
-            const match = linkHeader.match(/<([^>]+)>/);
-            if (match && match[1]) {
-                const permanentUrl = match[1];
-                if (!(await isDuplicateImage(permanentUrl))) return permanentUrl;
+    const maxAttempts = 2;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            const seed = Math.floor(Math.random() * 1000000);
+            const prompt = encodeURIComponent(visualQuery || "abstract art");
+            const genUrl = `https://gen.pollinations.ai/image/${prompt}?model=flux&width=1024&height=1024&nologo=true&seed=${seed}`;
+            log("@GenArt-v3", `Generating image with Pollinations (attempt ${attempt}): ${visualQuery}`);
+            const response = await fetch(genUrl, {
+                headers: { 'Authorization': `Bearer ${PEXELS_API_KEY}` }
+            });
+            if (!response.ok) throw new Error(`Pollinations returned ${response.status}`);
+            const linkHeader = response.headers.get('link');
+            if (linkHeader) {
+                const match = linkHeader.match(/<([^>]+)>/);
+                if (match && match[1]) {
+                    const permanentUrl = match[1];
+                    if (!(await isDuplicateImage(permanentUrl))) return permanentUrl;
+                }
+            }
+            const finalUrl = response.url;
+            if (finalUrl && (finalUrl.startsWith('https://media.pollinations.ai') || finalUrl.includes('pollinations'))) {
+                if (!(await isDuplicateImage(finalUrl))) return finalUrl;
+            }
+            throw new Error('No usable permanent media URL found');
+        } catch (e) {
+            log("@GenArt-v3", `Pollinations attempt ${attempt} failed: ${e.message}`, 'warn');
+            if (attempt === maxAttempts) {
+                log("@GenArt-v3", "Pollinations exhausted. No image this time.", 'warn');
+                return null;
             }
         }
-        const finalUrl = response.url;
-        if (finalUrl && finalUrl.startsWith('https://media.pollinations.ai')) {
-            return finalUrl;
-        }
-        throw new Error('No permanent media URL found');
-    } catch (e) {
-        log("@GenArt-v3", `Pollinations failed: ${e.message}. No image this time.`, 'warn');
-        return null;
     }
+    return null;
 }
 
 async function findPostToCommentOn() {

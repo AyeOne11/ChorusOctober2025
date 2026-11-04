@@ -1,4 +1,5 @@
 // popBot.js - PopPulse, charts with a point of view - Enhanced image variety and more backups
+// Now uses both Pexels (primary, reliable stock) and Pollinations (fallback generative)
 const fetch = require('node-fetch');
 const { Pool } = require('pg');
 const RssParser = require('rss-parser');
@@ -35,7 +36,8 @@ const pool = new Pool(
 );
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const PEXELS_API_KEY = process.env.PEXELS_API_KEY; // Actually a Pollinations key
+const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY;
+const PEXELS_API_KEY = process.env.PEXELS_API_KEY;
 
 async function isDuplicate(link) {
     const client = await pool.connect();
@@ -145,9 +147,44 @@ function getBackupPopPost(inspiration) {
     return make(inspiration.title);
 }
 
-async function fetchImageFromPollinations(visualQuery) {
+async function fetchImageFromPexels(visualQuery) {
     if (!PEXELS_API_KEY || PEXELS_API_KEY.includes('PASTE')) {
-        log("@PopPulse-v1", "No Pollinations key. Skipping image.", 'warn');
+        log("@PopPulse-v1", "No Pexels key. Skipping Pexels.", 'warn');
+        return null;
+    }
+
+    const queries = [visualQuery, visualQuery.split(' ').slice(0, 2).join(' '), 'music concert'].filter(Boolean);
+    for (const q of queries) {
+        try {
+            const url = `https://api.pexels.com/v1/search?query=${encodeURIComponent(q)}&per_page=5&orientation=landscape`;
+            log("@PopPulse-v1", `Searching Pexels: ${q}`);
+            const response = await fetch(url, {
+                headers: { Authorization: PEXELS_API_KEY }
+            });
+            if (!response.ok) throw new Error(`Pexels ${response.status}`);
+            const data = await response.json();
+            const photos = data.photos || [];
+            if (photos.length === 0) continue;
+
+            const shuffled = photos.sort(() => 0.5 - Math.random());
+            for (const photo of shuffled) {
+                const imgUrl = photo.src?.large2x || photo.src?.large || photo.src?.medium || photo.src?.original;
+                if (imgUrl && !(await isDuplicateImage(imgUrl))) {
+                    log("@PopPulse-v1", `Pexels hit: ${imgUrl.substring(0, 60)}...`);
+                    return imgUrl;
+                }
+            }
+        } catch (e) {
+            log("@PopPulse-v1", `Pexels attempt failed for "${q}": ${e.message}`, 'warn');
+        }
+    }
+    log("@PopPulse-v1", "Pexels exhausted. No usable photo.", 'warn');
+    return null;
+}
+
+async function fetchImageFromPollinations(visualQuery) {
+    if (!POLLINATIONS_API_KEY || POLLINATIONS_API_KEY.includes('PASTE')) {
+        log("@PopPulse-v1", "No Pollinations key. Skipping Pollinations.", 'warn');
         return null;
     }
     const maxAttempts = 2;
@@ -158,7 +195,7 @@ async function fetchImageFromPollinations(visualQuery) {
             const genUrl = `https://gen.pollinations.ai/image/${prompt}?model=flux&width=1024&height=1024&nologo=true&seed=${seed}`;
             log("@PopPulse-v1", `Generating image with Pollinations (attempt ${attempt}): ${visualQuery}`);
             const response = await fetch(genUrl, {
-                headers: { 'Authorization': `Bearer ${PEXELS_API_KEY}` }
+                headers: { 'Authorization': `Bearer ${POLLINATIONS_API_KEY}` }
             });
             if (!response.ok) throw new Error(`Pollinations returned ${response.status}`);
             const linkHeader = response.headers.get('link');
@@ -183,6 +220,14 @@ async function fetchImageFromPollinations(visualQuery) {
         }
     }
     return null;
+}
+
+async function fetchImage(visualQuery) {
+    const pexelsUrl = await fetchImageFromPexels(visualQuery);
+    if (pexelsUrl) return pexelsUrl;
+
+    log("@PopPulse-v1", "Pexels missed. Trying Pollinations...");
+    return await fetchImageFromPollinations(visualQuery);
 }
 
 async function findPostToCommentOn() {
@@ -267,7 +312,7 @@ async function postOriginal(inspiration) {
         log("@PopPulse-v1", "Mic failure. Switching to backup vocals.", 'warn');
         aiPost = getBackupPopPost(inspiration);
     }
-    const imageUrl = await fetchImageFromPollinations(aiPost.visual);
+    const imageUrl = await fetchImage(aiPost.visual);
 
     const client = await pool.connect();
     try {

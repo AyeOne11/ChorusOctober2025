@@ -154,6 +154,26 @@ const BACKUP_RECIPES = [
         text: `What makes ${title} worth repeating is the point where ${ingredient} turns tender without losing texture.`,
         tip: `Check the ${ingredient} a minute early rather than trusting the timer the first round: ${detail.substring(0, 90)}`,
         visual: ingredient
+    }),
+    (title, detail, ingredient) => ({
+        text: `For ${title}, the real work happens with ${ingredient} before anything else joins the pan.`,
+        tip: `Season the ${ingredient} well and let it sit uncovered for a few minutes: ${detail.substring(0, 90)}`,
+        visual: ingredient
+    }),
+    (title, detail, ingredient) => ({
+        text: `${title} stays interesting only if ${ingredient} keeps some bite after the liquid reduces.`,
+        tip: `Add the ${ingredient} later than the recipe suggests so it doesn't go soft: ${detail.substring(0, 90)}`,
+        visual: ingredient
+    }),
+    (title, detail, ingredient) => ({
+        text: `The best ${title} I've seen treats ${ingredient} as the main event, not a supporting note.`,
+        tip: `Taste the ${ingredient} on its own before combining so you know what it needs: ${detail.substring(0, 90)}`,
+        visual: ingredient
+    }),
+    (title, detail, ingredient) => ({
+        text: `${title} rewards anyone who lets ${ingredient} develop color instead of rushing the liquid.`,
+        tip: `Leave the ${ingredient} alone for the first two minutes of cooking: ${detail.substring(0, 90)}`,
+        visual: ingredient
     })
 ];
 
@@ -169,31 +189,39 @@ async function fetchImageFromPollinations(visualQuery) {
         log("@ChefBot-v1", "No Pollinations key. Skipping image.", 'warn');
         return null;
     }
-    try {
-        const prompt = encodeURIComponent(visualQuery || "delicious food");
-        const genUrl = `https://gen.pollinations.ai/image/${prompt}`;
-        log("@ChefBot-v1", `Generating image with Pollinations (simple): ${visualQuery}`);
-        const response = await fetch(genUrl, {
-            headers: { 'Authorization': `Bearer ${PEXELS_API_KEY}` }
-        });
-        if (!response.ok) throw new Error(`Pollinations returned ${response.status}`);
-        const linkHeader = response.headers.get('link');
-        if (linkHeader) {
-            const match = linkHeader.match(/<([^>]+)>/);
-            if (match && match[1]) {
-                const permanentUrl = match[1];
-                if (!(await isDuplicateImage(permanentUrl))) return permanentUrl;
+    const maxAttempts = 2;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            const seed = Math.floor(Math.random() * 1000000);
+            const prompt = encodeURIComponent(visualQuery || "delicious food");
+            const genUrl = `https://gen.pollinations.ai/image/${prompt}?model=flux&width=1024&height=1024&nologo=true&seed=${seed}`;
+            log("@ChefBot-v1", `Generating image with Pollinations (attempt ${attempt}): ${visualQuery}`);
+            const response = await fetch(genUrl, {
+                headers: { 'Authorization': `Bearer ${PEXELS_API_KEY}` }
+            });
+            if (!response.ok) throw new Error(`Pollinations returned ${response.status}`);
+            const linkHeader = response.headers.get('link');
+            if (linkHeader) {
+                const match = linkHeader.match(/<([^>]+)>/);
+                if (match && match[1]) {
+                    const permanentUrl = match[1];
+                    if (!(await isDuplicateImage(permanentUrl))) return permanentUrl;
+                }
+            }
+            const finalUrl = response.url;
+            if (finalUrl && (finalUrl.startsWith('https://media.pollinations.ai') || finalUrl.includes('pollinations'))) {
+                if (!(await isDuplicateImage(finalUrl))) return finalUrl;
+            }
+            throw new Error('No usable permanent media URL found');
+        } catch (e) {
+            log("@ChefBot-v1", `Pollinations attempt ${attempt} failed: ${e.message}`, 'warn');
+            if (attempt === maxAttempts) {
+                log("@ChefBot-v1", "Pollinations exhausted. No image this time.", 'warn');
+                return null;
             }
         }
-        const finalUrl = response.url;
-        if (finalUrl && finalUrl.startsWith('https://media.pollinations.ai')) {
-            return finalUrl;
-        }
-        throw new Error('No permanent media URL found');
-    } catch (e) {
-        log("@ChefBot-v1", `Pollinations failed: ${e.message}. No image this time.`, 'warn');
-        return null;
     }
+    return null;
 }
 
 async function runChefBot() {

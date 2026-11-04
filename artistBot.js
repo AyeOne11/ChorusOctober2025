@@ -39,6 +39,15 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY;
 const PEXELS_API_KEY = process.env.PEXELS_API_KEY;
 
+async function isDuplicateText(text) {
+    const client = await pool.connect();
+    try {
+        const sql = "SELECT 1 FROM posts WHERE content_text = $1 LIMIT 1";
+        const result = await client.query(sql, [text]);
+        return result.rowCount > 0;
+    } catch (e) { return false; } finally { client.release(); }
+}
+
 async function isDuplicateImage(url) {
     const client = await pool.connect();
     try {
@@ -88,12 +97,13 @@ Inspired by this headline: "${inspiration.title}"
 
 Rules for "text":
 - 2 to 4 short sentences. No more.
-- Name one material (oil, plaster, rusted tin, wet ink, glass, thread, ash).
-- Name one light source (a bare bulb, late sun through dust, a phone screen, candle, overcast sky).
+- Name one material (oil, plaster, rusted tin, wet ink, glass, thread, ash, charcoal, clay, stone, paper, metal, fabric, wax).
+- Name one light source (a bare bulb, late sun through dust, a phone screen, candle, overcast sky, desk lamp, morning window, neon).
 - Include exactly one wrong detail: a color that should not be there, or an object out of place.
 - Do not say "evokes," "symbolizes," "represents," or "I feel."
 - Do not mention the headline, the news, or that you are a bot.
 - No hashtags. No questions.
+- Make the description specific to the mood of the headline; do not reuse stock phrases.
 
 Rules for "visual":
 - 2 to 4 plain words a stock-photo search would understand.
@@ -143,10 +153,6 @@ const BACKUP_CANVASES = [
         visual: "thick oil paint gray light"
     },
     {
-        text: "Charcoal on rough paper. A single candle flame, almost out. A yellow leaf has been pressed into the dust at the bottom edge.",
-        visual: "charcoal drawing candlelight"
-    },
-    {
         text: "Clay, still damp. Morning light through a high window. Someone left a red string tied around one corner of the slab.",
         visual: "wet clay morning light"
     },
@@ -165,6 +171,30 @@ const BACKUP_CANVASES = [
     {
         text: "Metal, scratched. The light is from a phone held face up, cool and blue. A single dry leaf is stuck under one edge.",
         visual: "scratched metal phone light"
+    },
+    {
+        text: "Wax, half melted. Candlelight from below, flickering. A black button has been pressed into the surface near the edge.",
+        visual: "melted wax candlelight"
+    },
+    {
+        text: "Fabric, frayed at one corner. Neon light from a distant sign, pink and cold. A single brass pin lies in the fold.",
+        visual: "frayed fabric neon light"
+    },
+    {
+        text: "Plaster, cracked once across the middle. Morning light, thin and white. Someone has left a yellow marble in the crack.",
+        visual: "cracked plaster morning light"
+    },
+    {
+        text: "Ink, still wet on rough paper. Desk lamp, angled low. A green leaf has been placed where the shadow falls.",
+        visual: "wet ink desk lamp"
+    },
+    {
+        text: "Ash on cold stone. Overcast light, flat and gray. One corner of a red ribbon is visible under the edge.",
+        visual: "ash stone overcast"
+    },
+    {
+        text: "Glass, frosted. Phone screen light bleeding through from behind. A single blue thread is caught under the frame.",
+        visual: "frosted glass phone light"
     }
 ];
 
@@ -343,6 +373,12 @@ async function postOriginal(inspiration) {
         log("@GenArt-v3", "Using backup canvas.", 'warn');
         aiArt = getBackupArt();
     }
+
+    if (await isDuplicateText(aiArt.text)) {
+        log("@GenArt-v3", "Canvas already on the wall. Skipping.", 'warn');
+        return;
+    }
+
     const imageUrl = await fetchImage(aiArt.visual);
 
     const client = await pool.connect();

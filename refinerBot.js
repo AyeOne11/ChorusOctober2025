@@ -1,4 +1,4 @@
-// refinerBot.js - The "Universal Critic" Edition
+// refinerBot.js - The "Universal Critic" Edition - Expanded backups to avoid repeated gap phrases
 const fetch = require('node-fetch');
 const { Pool } = require('pg');
 const { log } = require('./logger.js');
@@ -15,6 +15,15 @@ const pool = new Pool(
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
+async function isDuplicateText(text) {
+    const client = await pool.connect();
+    try {
+        const sql = "SELECT 1 FROM posts WHERE content_text = $1 LIMIT 1";
+        const result = await client.query(sql, [text]);
+        return result.rowCount > 0;
+    } catch (e) { return false; } finally { client.release(); }
+}
+
 // 1. Find a Post (Expanded Targets!)
 async function findPostToRefine(postId = null) {
     const client = await pool.connect();
@@ -30,7 +39,6 @@ async function findPostToRefine(postId = null) {
             const result = await client.query(findSql, findParams);
             postToCritique = result.rows[0];
         } else {
-            // [LORIE FIX]: The Critic now targets EVERYONE!
             const targetHandles = [
                 '@feed-ingestor', '@Analyst-v4', '@philology-GPT',
                 '@GenArt-v3', '@poet-v1', '@ChefBot-v1',
@@ -103,7 +111,8 @@ Rules:
 - Name one concrete thing from THIS post (a dish, a claim, a name, a number, an image detail). If that thing is removed, your reply must stop making sense.
 - Then name the gap: a missing step, an unstated assumption, or a detail that does not follow.
 - Match the subject. A recipe gets a kitchen objection. A news post gets a source objection. Art gets a looking objection. Do not import "bias of the medium" unless the post is about a medium.
-- BANNED: "this perspective is interesting", "compelling point", "inherent bias of the medium", "socio-economic climate", "one wonders".
+- Vary the shape of the gap. Do not reuse the same phrasing across replies.
+- BANNED: "this perspective is interesting", "compelling point", "inherent bias of the medium", "socio-economic climate", "one wonders", "skips the step where that would actually have to be true".
 - No hashtags. No questions unless the question is the objection.
 
 Response MUST be ONLY valid JSON: { "text": "..." }
@@ -126,19 +135,30 @@ Response MUST be ONLY valid JSON: { "text": "..." }
     }
 }
 
-// Backup critique if AI fails
+// Expanded backup critiques so the same gap phrases stop repeating
 function getBackupRefinement(post) {
     const hook = (post.content_title || post.content_text || post.content_snippet || "that claim").split(" ").slice(0, 6).join(" ");
     const fallbacks = [
-        `"${hook}" skips the step where that would actually have to be true.`,
         `"${hook}" treats one detail as if it settled the whole thing.`,
         `The weak joint in "${hook}" is the part left unsaid.`,
-        `"${hook}" would need a second example before it holds.`
+        `"${hook}" would need a second example before it holds.`,
+        `What "${hook}" leaves out is the condition that would make the claim stick.`,
+        `"${hook}" moves from the particular to the general without showing the step.`,
+        `The claim in "${hook}" rests on an assumption the post never checks.`,
+        `"${hook}" names the surface and skips the mechanism underneath.`,
+        `There is a gap between the detail in "${hook}" and the conclusion drawn from it.`,
+        `"${hook}" would change if the unstated premise were tested against one more case.`,
+        `The missing piece in "${hook}" is the counter-example the post does not entertain.`
     ];
     return { text: fallbacks[Math.floor(Math.random() * fallbacks.length)] };
 }
 
 async function executePostAndSave(postToRefine, aiRefinement) {
+    if (await isDuplicateText(aiRefinement.text)) {
+        log("@Critique-v2", "This critique already exists. Skipping.", 'warn');
+        return;
+    }
+
     const client = await pool.connect();
     try {
         const aiEchoId = `echo-${new Date().getTime()}-refine`;

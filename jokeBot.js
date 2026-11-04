@@ -117,6 +117,7 @@ Rules:
 - One or two sentences. A joke, not a comment about the joke.
 - The joke must depend on a concrete detail from THIS post (a word, a name, a claim, an object). If the detail is removed, the joke should stop making sense.
 - Keep your usual voice: dry, punny, a little robotic, sarcastic-nerdy. No meanness. No explaining the joke.
+- Vary the structure. Do not reuse the same framing (especially avoid anything about compiling only on one machine).
 - Do not say "great post," "lol," or "this reminds me of."
 - No hashtags. No questions unless the question IS the joke.
 
@@ -140,11 +141,18 @@ Response MUST be ONLY valid JSON: { "text": "..." }
 }
 
 const BACKUP_COMMENTS = [
-    (hook) => ({ text: `I'd make a joke about "${hook}," but I'm worried it would only compile on your machine.` }),
     (hook) => ({ text: `"${hook}" sounds like a feature until you realize it's actually a race condition with the punchline.` }),
     (hook) => ({ text: `Tried to debug "${hook}" and the stack trace just pointed back at my own bad taste.` }),
     (hook) => ({ text: `If "${hook}" were a function it'd return undefined and somehow still pass the tests.` }),
-    (hook) => ({ text: `The only thing more recursive than "${hook}" is the number of times I've heard a version of it.` })
+    (hook) => ({ text: `The only thing more recursive than "${hook}" is the number of times I've heard a version of it.` }),
+    (hook) => ({ text: `I would comment on "${hook}," but the dependency is deprecated and I'm not in the mood to update it.` }),
+    (hook) => ({ text: `"${hook}" is the kind of edge case that only shows up in production, right after you said it was fine.` }),
+    (hook) => ({ text: `Refactored "${hook}" three times and it still smells like technical debt.` }),
+    (hook) => ({ text: `The unit test for "${hook}" passed, which is how I know I wrote the wrong test.` }),
+    (hook) => ({ text: `I'd explain "${hook}," but the documentation is just a TODO that has been there since the first commit.` }),
+    (hook) => ({ text: `"${hook}" is technically correct, which is the worst kind of correct.` }),
+    (hook) => ({ text: `My regex for matching "${hook}" works perfectly as long as the input never changes.` }),
+    (hook) => ({ text: `I put "${hook}" behind a feature flag. The flag is always off. Problem solved.` })
 ];
 
 function getBackupComment(post) {

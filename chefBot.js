@@ -38,23 +38,32 @@ const PEXELS_API_KEY = process.env.PEXELS_API_KEY;
 
 function looksLikeRecipe(title, snippet) {
     const text = (title + ' ' + (snippet || '')).toLowerCase();
+    const titleLower = title.toLowerCase();
+
     const strongRecipeSignals = ['recipe', 'how to cook', 'how to make', 'how to bake', 'how to roast', 'how to grill'];
     const weakRecipeSignals = ['cook', 'bake', 'roast', 'grill', 'braise', 'stew', 'sauce', 'cake', 'cookies', 'bread', 'soup', 'salad', 'pasta', 'chicken', 'beef', 'pork', 'fish', 'turkey', 'ingredients', 'prep', 'minutes'];
     const nonRecipeSignals = [
         'review', 'obituary', 'died', 'publisher', 'profile', 'interview',
         'restaurant review', 'has died', 'tribute', 'obit', 'passed away',
         'restaurant', 'chef profile', 'wine spectator', 'cigar', 'publisher of',
-        'glasgow', 'grace dent', 'news', 'breaking', 'announces', 'reports'
+        'glasgow', 'grace dent', 'news', 'breaking', 'announces', 'reports',
+        'influencer', 'tiktok', 'biggest', 'get gen z', 'lunches', 'collection',
+        'roundup', 'best of', 'ideas for', 'for the festive', 'tide you over'
     ];
+
+    // Reject obvious collections / roundups / non-dishes early
+    if (titleLower.match(/\b(lunches?|ideas|collection|roundup|best|guide|for christmas|festive)\b/) && !titleLower.includes('recipe')) {
+        return false;
+    }
 
     const hasStrong = strongRecipeSignals.some(s => text.includes(s));
     const hasWeak = weakRecipeSignals.some(s => text.includes(s));
     const hasNon = nonRecipeSignals.some(s => text.includes(s));
 
-    // Must have a strong signal OR (weak signal AND no non-recipe signal AND title is short/recipe-like)
     if (hasNon) return false;
     if (hasStrong) return true;
-    if (hasWeak && title.length < 80 && !title.toLowerCase().includes('review')) return true;
+    // Weak signal only if title looks like a specific dish (not too long, has food words)
+    if (hasWeak && title.length < 70 && title.split(/\s+/).length >= 2 && !titleLower.includes('review')) return true;
     return false;
 }
 
@@ -132,13 +141,13 @@ You are Gourmet-AI (@ChefBot-v1). You found this recipe.
 Title: "${inspiration.title}"
 Details: "${(inspiration.snippet || "").substring(0, 300)}"
 
-IMPORTANT: This MUST be an actual recipe or cooking method for a specific dish. If the title or details are a restaurant review, obituary, chef profile, news story, wine review, or anything that is not a dish you can cook at home, respond with exactly: {"skip": true}
+IMPORTANT: This MUST be an actual recipe or cooking method for a specific dish. If the title or details are a restaurant review, obituary, chef profile, news story, wine review, collection/roundup, influencer piece, or anything that is not a dish you can cook at home, respond with exactly: {"skip": true}
 
 Rules (only if it is a real recipe):
 - "text": 1 or 2 sentences about THIS dish. Name the dish. No "simplicity is key." No "circuits are drooling."
 - "tip": one sentence a cook could use on this recipe. Name an ingredient or a step that appears in the title or details. If the ingredient is removed, the tip must stop making sense.
 - BANNED tips: "Salt is a flavor enhancer", "taste as you go", "fresh herbs make all the difference", "don't overcrowd the pan", "let your meat rest", "sharpen your knives".
-- "visual": 2 to 4 plain words that name the exact main food being described. Must include the primary protein or dish name so a stock photo search returns that food. Good: "roast chicken", "chocolate chip cookies", "beef stew". Bad: "delicious meal", "gourmet plating".
+- "visual": 2 to 4 plain words that name the exact main food being described. Must include the primary protein or dish name so a stock photo search returns that food. Good: "roast chicken", "chocolate chip cookies", "beef stew". Bad: "delicious meal", "gourmet plating", "christmas lunches".
 
 Response MUST be ONLY valid JSON: { "text": "...", "tip": "...", "visual": "..." } or {"skip": true}
 `;
@@ -210,9 +219,21 @@ const BACKUP_RECIPES = [
     })
 ];
 
+function extractIngredient(title, snippet) {
+    const foodWords = ['chicken', 'beef', 'pork', 'lamb', 'fish', 'salmon', 'tuna', 'turkey', 'pasta', 'soup', 'salad', 'cake', 'cookies', 'bread', 'stew', 'curry', 'roast', 'grilled', 'baked', 'sauce', 'pie', 'tart', 'risotto', 'noodles'];
+    const titleLower = title.toLowerCase();
+    for (const word of foodWords) {
+        if (titleLower.includes(word)) return word;
+    }
+    // Fallback: first 2-3 words of title if it looks food-like
+    const words = title.split(/\s+/).slice(0, 3).join(' ');
+    if (words.length < 30) return words;
+    return 'the main ingredient';
+}
+
 function getBackupContent(inspiration) {
     const detail = (inspiration.snippet || inspiration.title || "").replace(/\s+/g, " ").trim();
-    const ingredient = (inspiration.title || "the main ingredient").split(/\s+/).slice(0, 4).join(" ");
+    const ingredient = extractIngredient(inspiration.title, detail);
     const make = BACKUP_RECIPES[Math.floor(Math.random() * BACKUP_RECIPES.length)];
     return make(inspiration.title, detail, ingredient);
 }
@@ -307,9 +328,10 @@ async function runChefBot() {
 
     if (!aiPost) {
         log("@ChefBot-v1", "AI skipped or failed. Checking if backup is still safe.", 'warn');
-        // Extra strict gate for backup — only proceed if title clearly looks like a recipe
-        if (!looksLikeRecipe(inspiration.title, inspiration.snippet) || inspiration.title.toLowerCase().includes('review') || inspiration.title.toLowerCase().includes('died')) {
-            log("@ChefBot-v1", "Backup rejected — not a clear recipe.", 'warn');
+        // Extra strict gate for backup — only proceed if title clearly looks like a specific dish
+        if (!looksLikeRecipe(inspiration.title, inspiration.snippet) || 
+            inspiration.title.toLowerCase().match(/\b(review|died|influencer|tiktok|lunches|collection|roundup)\b/)) {
+            log("@ChefBot-v1", "Backup rejected — not a clear specific recipe.", 'warn');
             return;
         }
         aiPost = getBackupContent(inspiration);

@@ -48,13 +48,15 @@ function looksLikeRecipe(title, snippet) {
         'restaurant', 'chef profile', 'wine spectator', 'cigar', 'publisher of',
         'glasgow', 'grace dent', 'news', 'breaking', 'announces', 'reports',
         'influencer', 'tiktok', 'biggest', 'get gen z', 'lunches', 'collection',
-        'roundup', 'best of', 'ideas for', 'for the festive', 'tide you over'
+        'roundup', 'best of', 'ideas for', 'for the festive', 'tide you over',
+        'christmas lunches', 'stollen with', 'with almonds'
     ];
 
     // Reject obvious collections / roundups / non-dishes early
-    if (titleLower.match(/\b(lunches?|ideas|collection|roundup|best|guide|for christmas|festive)\b/) && !titleLower.includes('recipe')) {
+    if (titleLower.match(/\b(lunches?|ideas|collection|roundup|best|guide|for christmas|festive|stollen with)\b/) && !titleLower.includes('recipe')) {
         return false;
     }
+    if ((titleLower.match(/with/g) || []).length > 1 && title.length > 40) return false;
 
     const hasStrong = strongRecipeSignals.some(s => text.includes(s));
     const hasWeak = weakRecipeSignals.some(s => text.includes(s));
@@ -219,16 +221,25 @@ const BACKUP_RECIPES = [
     })
 ];
 
+function sanitizeIngredient(raw) {
+    if (!raw) return 'the main ingredient';
+    let cleaned = raw.replace(/with .*/i, '').replace(/and .*/i, '').replace(/& .*/i, '').trim();
+    cleaned = cleaned.replace(/\b(christmas|festive|best|the)\b/gi, '').trim();
+    if (cleaned.length > 25 || cleaned.split(/\s+/).length > 3 || cleaned.includes('with')) {
+        return 'the main ingredient';
+    }
+    return cleaned || 'the main ingredient';
+}
+
 function extractIngredient(title, snippet) {
-    const foodWords = ['chicken', 'beef', 'pork', 'lamb', 'fish', 'salmon', 'tuna', 'turkey', 'pasta', 'soup', 'salad', 'cake', 'cookies', 'bread', 'stew', 'curry', 'roast', 'grilled', 'baked', 'sauce', 'pie', 'tart', 'risotto', 'noodles'];
+    const foodWords = ['chicken', 'beef', 'pork', 'lamb', 'fish', 'salmon', 'tuna', 'turkey', 'pasta', 'soup', 'salad', 'cake', 'cookies', 'bread', 'stew', 'curry', 'roast', 'grilled', 'baked', 'sauce', 'pie', 'tart', 'risotto', 'noodles', 'stollen', 'marzipan', 'almonds'];
     const titleLower = title.toLowerCase();
     for (const word of foodWords) {
-        if (titleLower.includes(word)) return word;
+        if (titleLower.includes(word)) return sanitizeIngredient(word);
     }
-    // Fallback: first 2-3 words of title if it looks food-like
+    // Fallback: first 2-3 words of title if it looks food-like, then sanitize
     const words = title.split(/\s+/).slice(0, 3).join(' ');
-    if (words.length < 30) return words;
-    return 'the main ingredient';
+    return sanitizeIngredient(words.length < 30 ? words : 'the main ingredient');
 }
 
 function getBackupContent(inspiration) {
@@ -330,7 +341,7 @@ async function runChefBot() {
         log("@ChefBot-v1", "AI skipped or failed. Checking if backup is still safe.", 'warn');
         // Extra strict gate for backup — only proceed if title clearly looks like a specific dish
         if (!looksLikeRecipe(inspiration.title, inspiration.snippet) || 
-            inspiration.title.toLowerCase().match(/\b(review|died|influencer|tiktok|lunches|collection|roundup)\b/)) {
+            inspiration.title.toLowerCase().match(/\b(review|died|influencer|tiktok|lunches|collection|roundup|stollen with)\b/)) {
             log("@ChefBot-v1", "Backup rejected — not a clear specific recipe.", 'warn');
             return;
         }
